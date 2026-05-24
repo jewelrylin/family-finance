@@ -91,29 +91,33 @@ export default function InvestmentForm({ categories, onSuccess }) {
 
       {view === 'portfolio' && portfolio && (
         <>
-          <div className="grid-3 mb-3">
+          <div className="grid-4 mb-3">
             <div className="card text-center">
               <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>總投入本金</div>
-              <div style={{ fontSize: 28, fontWeight: 800 }}>${portfolio.summary.totalInvested.toLocaleString()}</div>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>${portfolio.summary.totalInvested.toLocaleString()}</div>
             </div>
             <div className="card text-center">
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>總報酬（已實現+股利）</div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: portfolio.summary.totalReturn >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                ${portfolio.summary.totalReturn.toLocaleString()}
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>目前市值</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--primary)' }}>${portfolio.summary.totalMV.toLocaleString()}</div>
+            </div>
+            <div className="card text-center">
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>總損益（含股利）</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: portfolio.summary.totalReturn >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                {portfolio.summary.totalReturn >= 0 ? '+' : ''}${portfolio.summary.totalReturn.toLocaleString()}
               </div>
             </div>
             <div className="card text-center">
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>整體報酬率</div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: portfolio.summary.roi >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                {portfolio.summary.roi}%
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>報酬率</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: portfolio.summary.roi >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                {portfolio.summary.roi >= 0 ? '+' : ''}{portfolio.summary.roi}%
               </div>
             </div>
           </div>
-          {portfolio.portfolio.some(a => a.totalDividends > 0) && (
+          {portfolio.summary.totalDividends > 0 && (
             <div className="card mb-3" style={{ background: '#fff3e0', textAlign: 'center', padding: 12 }}>
-              <span style={{ fontSize: 15 }}>📋 股利總計：
+              <span style={{ fontSize: 15 }}>📋 累計股利：
                 <strong style={{ color: 'var(--warning)', fontSize: 20 }}>
-                  ${portfolio.portfolio.reduce((s, a) => s + (a.totalDividends || 0), 0).toLocaleString()}
+                  ${portfolio.summary.totalDividends.toLocaleString()}
                 </strong>
               </span>
             </div>
@@ -134,11 +138,13 @@ export default function InvestmentForm({ categories, onSuccess }) {
                       <th>分類</th>
                       <th>持有數量</th>
                       <th>平均成本</th>
+                      <th>現價</th>
+                      <th>市值</th>
                       <th>投入本金</th>
-                      <th>股利合計</th>
-                      <th>已實現損益</th>
+                      <th>股利</th>
+                      <th>總損益</th>
                       <th>報酬率</th>
-                      <th>配置比例</th>
+                      <th>配置</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -150,8 +156,10 @@ export default function InvestmentForm({ categories, onSuccess }) {
                           <td><span className="badge badge-investment">{a.category}</span></td>
                           <td>{a.totalShares.toFixed(2)}</td>
                           <td>${a.avgCost.toLocaleString()}</td>
-                          <td style={{ color: 'var(--danger)' }}>-${a.totalInvested.toLocaleString()}</td>
-                          <td style={{ color: 'var(--warning)', fontWeight: 700 }}>
+                          <td style={{ fontWeight: 600 }}>${(a.currentPrice || 0).toLocaleString()}</td>
+                          <td style={{ color: 'var(--primary)', fontWeight: 600 }}>${a.marketValue.toLocaleString()}</td>
+                          <td style={{ color: 'var(--danger)' }}>${a.totalInvested.toLocaleString()}</td>
+                          <td style={{ color: 'var(--warning)', fontWeight: 600 }}>
                             +${(a.totalDividends || 0).toLocaleString()}
                           </td>
                           <td style={{ color: a.totalPL >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>

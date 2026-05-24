@@ -39,9 +39,14 @@ router.get('/portfolio', authenticate, async (req, res) => {
   try {
     const rows = await db.getTransactionsByUserAndType(req.user.id, 'investment');
     const assets = {};
+
     for (const t of rows) {
       const key = t.asset_name || t.category;
-      if (!assets[key]) assets[key] = { name: key, category: t.category, buys: [], sells: [], dividends: [], totalInvested: 0, totalShares: 0, totalFee: 0, totalReturn: 0 };
+      if (!assets[key]) assets[key] = {
+        name: key, category: t.category, buys: [], sells: [], dividends: [],
+        totalInvested: 0, totalShares: 0, totalFee: 0, totalSells: 0, totalDividends: 0,
+        latestPrice: null, latestPriceDate: null,
+      };
       if (t.tx_type === 'buy') {
         assets[key].buys.push(t);
         assets[key].totalInvested += t.amount;
@@ -49,29 +54,55 @@ router.get('/portfolio', authenticate, async (req, res) => {
         assets[key].totalFee += t.fee || 0;
       } else if (t.tx_type === 'sell') {
         assets[key].sells.push(t);
-        assets[key].totalReturn += t.amount;
+        assets[key].totalSells += t.amount;
         assets[key].totalShares -= t.quantity || 0;
       } else if (t.tx_type === 'dividend') {
         assets[key].dividends.push(t);
-        assets[key].totalReturn += t.amount;
+        assets[key].totalDividends += t.amount;
+      }
+      const cp = t.current_price || 0;
+      if (cp > 0 && (!assets[key].latestPriceDate || t.date >= assets[key].latestPriceDate)) {
+        assets[key].latestPrice = cp;
+        assets[key].latestPriceDate = t.date;
       }
     }
 
     const portfolio = Object.values(assets).map(a => {
+      const currentPrice = a.latestPrice || 0;
       const avgCost = a.totalShares > 0 ? a.totalInvested / a.totalShares : 0;
-      const marketValue = a.totalShares * (a.buys[a.buys.length - 1]?.current_price || avgCost);
-      const unrealizedPL = marketValue - (a.totalShares * avgCost);
-      const totalDividends = a.dividends.reduce((s, d) => s + d.amount, 0);
-      const totalPL = a.totalReturn - a.totalInvested;
-      const roi = a.totalInvested > 0 ? ((a.totalReturn - a.totalInvested) / a.totalInvested * 100) : 0;
-      return { ...a, totalDividends, avgCost: Math.round(avgCost * 100) / 100, marketValue: Math.round(marketValue), unrealizedPL: Math.round(unrealizedPL), totalPL, roi: Math.round(roi * 100) / 100 };
+      const marketValue = a.totalShares * currentPrice;
+      const costBasis = a.totalShares * avgCost;
+      const unrealizedPL = marketValue - costBasis;
+      const totalPL = marketValue + a.totalSells + a.totalDividends - a.totalInvested;
+      const totalIn = a.totalInvested;
+      const totalOut = a.totalSells + a.totalDividends + marketValue;
+      const roi = totalIn > 0 ? ((totalOut - totalIn) / totalIn * 100) : 0;
+      return {
+        ...a, avgCost: Math.round(avgCost * 100) / 100,
+        currentPrice, marketValue: Math.round(marketValue),
+        unrealizedPL: Math.round(unrealizedPL),
+        totalPL: Math.round(totalPL), roi: Math.round(roi * 100) / 100,
+      };
     });
 
-    const grandTotal = portfolio.reduce((s, a) => s + a.totalInvested, 0);
-    const grandReturn = portfolio.reduce((s, a) => s + a.totalReturn, 0);
-    const grandROI = grandTotal > 0 ? ((grandReturn - grandTotal) / grandTotal * 100) : 0;
+    const grandInvested = portfolio.reduce((s, a) => s + a.totalInvested, 0);
+    const grandMV = portfolio.reduce((s, a) => s + a.marketValue, 0);
+    const grandSells = portfolio.reduce((s, a) => s + a.totalSells, 0);
+    const grandDivs = portfolio.reduce((s, a) => s + a.totalDividends, 0);
+    const grandReturn = grandMV + grandSells + grandDivs - grandInvested;
+    const grandROI = grandInvested > 0 ? (grandReturn / grandInvested * 100) : 0;
 
-    res.json({ portfolio, summary: { totalInvested: grandTotal, totalReturn: grandReturn, roi: Math.round(grandROI * 100) / 100, assetCount: portfolio.length } });
+    res.json({
+      portfolio,
+      summary: {
+        totalInvested: grandInvested,
+        totalReturn: Math.round(grandReturn),
+        roi: Math.round(grandROI * 100) / 100,
+        assetCount: portfolio.length,
+        totalMV: Math.round(grandMV),
+        totalDividends: grandDivs,
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: '伺服器錯誤' });
   }
