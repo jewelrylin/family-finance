@@ -41,11 +41,7 @@ const db = {
 
   async createUser(email, passwordHash, displayName, role, familyId) {
     const { data, error } = await supabase.from('users').insert({
-      email,
-      password_hash: passwordHash,
-      display_name: displayName,
-      role,
-      family_id: familyId,
+      email, password_hash: passwordHash, display_name: displayName, role, family_id: familyId,
     }).select().single();
     if (error) throw new Error(error.message);
     return data;
@@ -81,9 +77,11 @@ const db = {
     return data || [];
   },
 
-  async createTransaction(userId, familyId, type, category, amount, note, date) {
+  async createTransaction(userId, familyId, type, category, amount, note, assetName, quantity, unitPrice, fee, txType, currentPrice, date) {
     const { data, error } = await supabase.from('transactions').insert({
-      user_id: userId, family_id: familyId, type, category, amount, note, date,
+      user_id: userId, family_id: familyId, type, category, amount, note,
+      asset_name: assetName || '', quantity: quantity || 0, unit_price: unitPrice || 0,
+      fee: fee || 0, tx_type: txType || 'buy', current_price: currentPrice || 0, date,
     }).select().single();
     if (error) throw new Error(error.message);
     return data;
@@ -118,8 +116,12 @@ const db = {
     return (data || []).map(t => ({ ...t, display_name: t.users?.display_name || '' }));
   },
 
-  async updateTransaction(category, amount, note, date, id, familyId) {
-    const { error } = await supabase.from('transactions').update({ category, amount, note, date }).eq('id', id).eq('family_id', familyId);
+  async updateTransaction(category, amount, note, assetName, quantity, unitPrice, fee, txType, currentPrice, date, id, familyId) {
+    const { error } = await supabase.from('transactions').update({
+      category, amount, note,
+      asset_name: assetName || '', quantity: quantity || 0, unit_price: unitPrice || 0,
+      fee: fee || 0, tx_type: txType || 'buy', current_price: currentPrice || 0, date,
+    }).eq('id', id).eq('family_id', familyId);
     if (error) throw new Error(error.message);
   },
 

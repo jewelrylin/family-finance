@@ -2,146 +2,285 @@ import { useState, useEffect } from 'react'
 import { api } from '../api'
 
 export default function InvestmentForm({ categories, onSuccess }) {
-  const [form, setForm] = useState({ category: categories[0] || '', amount: '', note: '', date: new Date().toISOString().split('T')[0] })
+  const [form, setForm] = useState({
+    category: categories[0] || '', amount: '', note: '', date: new Date().toISOString().split('T')[0],
+    assetName: '', quantity: '', unitPrice: '', fee: '0', txType: 'buy', currentPrice: '',
+  })
   const [transactions, setTransactions] = useState([])
+  const [portfolio, setPortfolio] = useState(null)
   const [error, setError] = useState('')
   const [editingId, setEditingId] = useState(null)
+  const [view, setView] = useState('portfolio')
 
-  useEffect(() => {
+  const fetchData = () => {
     api.transactions.list({ type: 'investment', mine: 'true' }).then(setTransactions).catch(() => {})
-  }, [onSuccess])
+    api.transactions.list({ type: 'investment', mine: 'true', _: Date.now() }).then(async () => {
+      try {
+        const res = await fetch('/api/transactions/portfolio', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error)
+        setPortfolio(data)
+      } catch {}
+    }).catch(() => {})
+  }
 
-  const total = transactions.reduce((s, t) => s + t.amount, 0)
-  const returns = transactions.filter(t => t.category === '投資收益').reduce((s, t) => s + t.amount, 0)
-  const invested = transactions.filter(t => t.category !== '投資收益').reduce((s, t) => s + t.amount, 0)
-  const roi = invested > 0 ? ((returns - invested) / invested * 100) : 0
+  useEffect(() => { fetchData() }, [])
+
+  useEffect(() => { if (onSuccess) fetchData() }, [onSuccess])
+
+  const resetForm = () => {
+    setForm({ category: categories[0] || '', amount: '', note: '', date: new Date().toISOString().split('T')[0],
+      assetName: '', quantity: '', unitPrice: '', fee: '0', txType: 'buy', currentPrice: '' })
+    setEditingId(null)
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     try {
-      if (editingId) {
-        await api.transactions.update(editingId, form)
-      } else {
-        await api.transactions.create({ ...form, type: 'investment' })
+      const body = {
+        ...form, type: 'investment',
+        amount: Number(form.amount),
+        quantity: form.quantity ? Number(form.quantity) : 0,
+        unitPrice: form.unitPrice ? Number(form.unitPrice) : 0,
+        fee: form.fee ? Number(form.fee) : 0,
+        currentPrice: form.currentPrice ? Number(form.currentPrice) : 0,
       }
-      setForm({ category: categories[0] || '', amount: '', note: '', date: new Date().toISOString().split('T')[0] })
-      setEditingId(null)
-      onSuccess()
+      if (editingId) {
+        await api.transactions.update(editingId, body)
+      } else {
+        await api.transactions.create(body)
+      }
+      resetForm()
+      fetchData()
     } catch (err) {
       setError(err.message)
     }
   }
 
   const handleEdit = (t) => {
-    setForm({ category: t.category, amount: String(t.amount), note: t.note, date: t.date })
+    setForm({
+      category: t.category, amount: String(t.amount), note: t.note || '', date: t.date,
+      assetName: t.asset_name || '', quantity: String(t.quantity || ''),
+      unitPrice: String(t.unit_price || ''), fee: String(t.fee || '0'),
+      txType: t.tx_type || 'buy', currentPrice: String(t.current_price || ''),
+    })
     setEditingId(t.id)
+    setView('form')
   }
 
   const handleDelete = async (id) => {
-    if (!confirm('確定刪除此筆記錄？')) return
+    if (!confirm('確定刪除？')) return
     await api.transactions.delete(id)
-    onSuccess()
+    fetchData()
   }
+
+  const txTypeLabels = { buy: '買入', sell: '賣出', dividend: '股利' }
+  const totalInvested = transactions.filter(t => t.tx_type === 'buy').reduce((s, t) => s + t.amount, 0)
 
   return (
     <div>
-      <div className="grid-2">
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <button className={`btn ${view === 'portfolio' ? 'btn-primary' : 'btn-outline'} btn-sm`} onClick={() => setView('portfolio')}>投資組合</button>
+        <button className={`btn ${view === 'form' ? 'btn-primary' : 'btn-outline'} btn-sm`} onClick={() => setView('form')}>新增交易</button>
+        <button className={`btn ${view === 'history' ? 'btn-primary' : 'btn-outline'} btn-sm`} onClick={() => setView('history')}>交易記錄</button>
+      </div>
+
+      {view === 'portfolio' && portfolio && (
+        <>
+          <div className="grid-3 mb-3">
+            <div className="card text-center">
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>總投入本金</div>
+              <div style={{ fontSize: 28, fontWeight: 800 }}>${portfolio.summary.totalInvested.toLocaleString()}</div>
+            </div>
+            <div className="card text-center">
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>總報酬（已實現+股利）</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: portfolio.summary.totalReturn >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                ${portfolio.summary.totalReturn.toLocaleString()}
+              </div>
+            </div>
+            <div className="card text-center">
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>整體報酬率</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: portfolio.summary.roi >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                {portfolio.summary.roi}%
+              </div>
+            </div>
+          </div>
+
+          {portfolio.portfolio.length === 0 ? (
+            <div className="card text-center" style={{ padding: 40, color: 'var(--text-secondary)' }}>
+              尚無投資組合資料，請先新增買入交易
+            </div>
+          ) : (
+            <div className="card">
+              <h2 style={{ fontWeight: 700, marginBottom: 16 }}>投資組合明細</h2>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="portfolio-table">
+                  <thead>
+                    <tr>
+                      <th>標的</th>
+                      <th>分類</th>
+                      <th>持有數量</th>
+                      <th>平均成本</th>
+                      <th>投入本金</th>
+                      <th>已實現損益</th>
+                      <th>報酬率</th>
+                      <th>配置比例</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {portfolio.portfolio.map(a => {
+                      const allocPct = portfolio.summary.totalInvested > 0 ? (a.totalInvested / portfolio.summary.totalInvested * 100) : 0
+                      return (
+                        <tr key={a.name}>
+                          <td style={{ fontWeight: 700 }}>{a.name}</td>
+                          <td><span className="badge badge-investment">{a.category}</span></td>
+                          <td>{a.totalShares.toFixed(2)}</td>
+                          <td>${a.avgCost.toLocaleString()}</td>
+                          <td style={{ color: 'var(--danger)' }}>-${a.totalInvested.toLocaleString()}</td>
+                          <td style={{ color: a.totalPL >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
+                            {a.totalPL >= 0 ? '+' : ''}${a.totalPL.toLocaleString()}
+                          </td>
+                          <td style={{ color: a.roi >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
+                            {a.roi >= 0 ? '+' : ''}{a.roi}%
+                          </td>
+                          <td>{allocPct.toFixed(1)}%</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {view === 'portfolio' && !portfolio && (
+        <div className="card text-center" style={{ padding: 40, color: 'var(--text-secondary)' }}>載入中...</div>
+      )}
+
+      {view === 'form' && (
         <div className="card">
-          <h2 style={{ fontWeight: 700, marginBottom: 16 }}>
-            {editingId ? '編輯投資' : '新增投資'}
-          </h2>
+          <h2 style={{ fontWeight: 700, marginBottom: 16 }}>{editingId ? '編輯交易' : '新增投資交易'}</h2>
           {error && <div className="error-msg">{error}</div>}
           <form onSubmit={handleSubmit}>
-            <div className="input-group">
-              <label>分類</label>
-              <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-                {categories.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+            <div className="grid-3">
+              <div className="input-group">
+                <label>交易類型</label>
+                <select value={form.txType} onChange={e => setForm({ ...form, txType: e.target.value })}>
+                  <option value="buy">買入</option>
+                  <option value="sell">賣出</option>
+                  <option value="dividend">股利/配息</option>
+                </select>
+              </div>
+              <div className="input-group">
+                <label>投資分類</label>
+                <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="input-group">
+                <label>投資標的名稱</label>
+                <input value={form.assetName} onChange={e => setForm({ ...form, assetName: e.target.value })} />
+              </div>
             </div>
-            <div className="input-group">
-              <label>金額</label>
-              <input type="number" step="0.01" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} required />
+            <div className="grid-3">
+              <div className="input-group">
+                <label>數量（股/單位）</label>
+                <input type="number" step="0.0001" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} />
+              </div>
+              <div className="input-group">
+                <label>單價</label>
+                <input type="number" step="0.01" value={form.unitPrice} onChange={e => setForm({ ...form, unitPrice: e.target.value })} />
+              </div>
+              <div className="input-group">
+                <label>交易金額（總額）*</label>
+                <input type="number" step="0.01" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} required />
+              </div>
             </div>
-            <div className="input-group">
-              <label>日期</label>
-              <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} required />
+            <div className="grid-3">
+              <div className="input-group">
+                <label>手續費</label>
+                <input type="number" step="0.01" value={form.fee} onChange={e => setForm({ ...form, fee: e.target.value })} />
+              </div>
+              <div className="input-group">
+                <label>現價（用於計算未實現損益）</label>
+                <input type="number" step="0.01" value={form.currentPrice} onChange={e => setForm({ ...form, currentPrice: e.target.value })} />
+              </div>
+              <div className="input-group">
+                <label>交易日期 *</label>
+                <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} required />
+              </div>
             </div>
             <div className="input-group">
               <label>備註</label>
               <input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} />
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
+              <button type="submit" className="btn btn-primary">
                 {editingId ? '更新' : '新增'}
               </button>
               {editingId && (
-                <button type="button" className="btn btn-outline" onClick={() => { setEditingId(null); setForm({ category: categories[0] || '', amount: '', note: '', date: new Date().toISOString().split('T')[0] }) }}>
-                  取消
-                </button>
+                <button type="button" className="btn btn-outline" onClick={resetForm}>取消</button>
               )}
             </div>
           </form>
         </div>
+      )}
 
-        <div>
-          <div className="card mb-3">
-            <div className="grid-3">
-              <div className="text-center">
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>個人投資總額</div>
-                <div style={{ fontSize: 22, fontWeight: 800 }}>${total.toLocaleString()}</div>
-              </div>
-              <div className="text-center">
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>投資收益</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: returns >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                  ${returns.toLocaleString()}
-                </div>
-              </div>
-              <div className="text-center">
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>報酬率</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: roi >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                  {roi.toFixed(1)}%
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="card">
-            <h2 style={{ fontWeight: 700, marginBottom: 16 }}>個人投資記錄</h2>
-            <div className="transaction-list">
-              {transactions.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-secondary)' }}>尚無投資記錄</div>
-              ) : (
-                transactions.map(t => (
-                  <div key={t.id} className="transaction-item">
-                    <div>
-                      <div style={{ fontWeight: 600 }}>{t.category}</div>
-                      <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t.date} {t.note && `- ${t.note}`}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-investment" style={{ fontWeight: 700, fontSize: 18 }}>
-                        ${t.amount.toLocaleString()}
+      {view === 'history' && (
+        <div className="card">
+          <h2 style={{ fontWeight: 700, marginBottom: 16 }}>所有交易記錄</h2>
+          <div className="transaction-list">
+            {transactions.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-secondary)' }}>尚無交易記錄</div>
+            ) : (
+              transactions.map(t => (
+                <div key={t.id} className="transaction-item">
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span className={`badge ${t.tx_type === 'buy' ? 'badge-income' : t.tx_type === 'sell' ? 'badge-expense' : 'badge-investment'}`}>
+                        {txTypeLabels[t.tx_type] || t.tx_type}
                       </span>
-                      <button className="btn btn-outline btn-sm" onClick={() => handleEdit(t)}>編輯</button>
-                      <button className="btn btn-danger btn-sm" onClick={() => handleDelete(t.id)}>刪除</button>
+                      <span style={{ fontWeight: 700 }}>{t.asset_name || t.category}</span>
+                      {t.quantity > 0 && <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t.quantity}股</span>}
+                      {t.unit_price > 0 && <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>@${t.unit_price}</span>}
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                      {t.date} {t.category} {t.note && `- ${t.note}`}
+                      {t.fee > 0 && ` | 手續費 $${t.fee}`}
                     </div>
                   </div>
-                ))
-              )}
-            </div>
+                  <div className="flex items-center gap-2">
+                    <span style={{ fontWeight: 700, fontSize: 18, color: t.tx_type === 'sell' ? 'var(--success)' : t.tx_type === 'dividend' ? 'var(--warning)' : 'var(--danger)' }}>
+                      {t.tx_type === 'sell' || t.tx_type === 'dividend' ? '+' : '-'}${t.amount.toLocaleString()}
+                    </span>
+                    <button className="btn btn-outline btn-sm" onClick={() => handleEdit(t)}>編輯</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => handleDelete(t.id)}>刪除</button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
-      </div>
-      <style>{transactionStyles}</style>
+      )}
+
+      <style>{styles}</style>
     </div>
   )
 }
 
-const transactionStyles = `
-  .transaction-list { max-height: 400px; overflow-y: auto; }
+const styles = `
+  .transaction-list { max-height: 500px; overflow-y: auto; }
   .transaction-item {
     display: flex; justify-content: space-between; align-items: center;
     padding: 12px 0; border-bottom: 1px solid var(--border);
   }
   .transaction-item:last-child { border-bottom: none; }
+  .portfolio-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .portfolio-table th { text-align: left; padding: 10px 8px; border-bottom: 2px solid var(--border); font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+  .portfolio-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); }
+  .portfolio-table tr:last-child td { border-bottom: none; }
+  .portfolio-table tr:hover td { background: #f8f9fa; }
 `
