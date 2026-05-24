@@ -46,6 +46,7 @@ router.get('/portfolio', authenticate, async (req, res) => {
         name: key, category: t.category, buys: [], sells: [], dividends: [],
         totalInvested: 0, totalShares: 0, totalFee: 0, totalSells: 0, totalDividends: 0,
         latestPrice: null, latestPriceDate: null,
+        latestPriceSourceUnitPrice: null,
       };
       if (t.tx_type === 'buy') {
         assets[key].buys.push(t);
@@ -64,24 +65,45 @@ router.get('/portfolio', authenticate, async (req, res) => {
       if (cp > 0 && (!assets[key].latestPriceDate || t.date >= assets[key].latestPriceDate)) {
         assets[key].latestPrice = cp;
         assets[key].latestPriceDate = t.date;
+        assets[key].latestPriceSourceUnitPrice = t.unit_price || 0;
       }
     }
 
     const portfolio = Object.values(assets).map(a => {
       const currentPrice = a.latestPrice || 0;
       const totalSharesBought = a.buys.reduce((s, b) => s + (b.quantity || 0), 0);
-      const totalCost = a.buys.reduce((s, b) => s + (b.quantity || 0) * (b.unit_price || 0), 0);
-      const avgCost = totalSharesBought > 0 ? totalCost / totalSharesBought : 0;
-      const marketValue = a.totalShares * currentPrice;
-      const costOfHeld = a.totalShares * avgCost;
-      const unrealizedPL = marketValue - costOfHeld;
-      const totalPL = marketValue + a.totalSells + a.totalDividends - totalCost;
-      const roi = totalCost > 0 ? (totalPL / totalCost * 100) : 0;
+      const totalCostTWD = a.buys.reduce((s, b) => s + b.amount, 0);
+      const totalSharesHeld = Math.max(0, a.totalShares);
+      const fractionHeld = totalSharesBought > 0 ? totalSharesHeld / totalSharesBought : 0;
+
+      // 每筆買入的目前台幣價值 = 買入台幣金額 × (現價 / 當時單價)
+      // 有賣出時按持有比例攤算
+      let currentValueTWD = 0;
+      for (const b of a.buys) {
+        const up = b.unit_price || 0;
+        if (up > 0 && currentPrice > 0) {
+          currentValueTWD += b.amount * (currentPrice / up);
+        }
+      }
+      currentValueTWD = currentValueTWD * fractionHeld;
+
+      // 無單位價格時退回用數量 × 現價估算
+      if (currentValueTWD === 0 && a.totalShares > 0 && currentPrice > 0) {
+        currentValueTWD = a.totalShares * currentPrice;
+      }
+
+      const totalPL = currentValueTWD + a.totalSells + a.totalDividends - totalCostTWD;
+      const roi = totalCostTWD > 0 ? (totalPL / totalCostTWD * 100) : 0;
+
+      // 平均每單位台幣成本
+      const avgCostTWD = totalSharesBought > 0 ? totalCostTWD / totalSharesBought : 0;
+
       return {
-        ...a, avgCost: Math.round(avgCost * 100) / 100,
-        currentPrice, marketValue: Math.round(marketValue),
-        totalCost: Math.round(totalCost),
-        unrealizedPL: Math.round(unrealizedPL),
+        ...a, avgCost: Math.round(avgCostTWD * 100) / 100,
+        currentPrice,
+        marketValue: Math.round(currentValueTWD),
+        totalCost: Math.round(totalCostTWD),
+        unrealizedPL: Math.round(currentValueTWD - (totalSharesHeld * avgCostTWD)),
         totalPL: Math.round(totalPL), roi: Math.round(roi * 100) / 100,
       };
     });
