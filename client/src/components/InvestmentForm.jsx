@@ -84,7 +84,10 @@ export default function InvestmentForm({ categories, onSuccess }) {
         <button className={`btn ${view === 'portfolio' ? 'btn-primary' : 'btn-outline'} btn-sm`} onClick={() => setView('portfolio')}>投資組合</button>
         <button className={`btn ${view === 'form' ? 'btn-primary' : 'btn-outline'} btn-sm`} onClick={() => setView('form')}>新增交易</button>
         <button className={`btn ${view === 'history' ? 'btn-primary' : 'btn-outline'} btn-sm`} onClick={() => setView('history')}>交易記錄</button>
+        <button className={`btn ${view === 'calculator' ? 'btn-primary' : 'btn-outline'} btn-sm`} onClick={() => setView('calculator')}>複利計算</button>
       </div>
+
+      {view === 'calculator' && <CompoundCalculator />}
 
       {view === 'portfolio' && portfolio && (
         <>
@@ -106,6 +109,15 @@ export default function InvestmentForm({ categories, onSuccess }) {
               </div>
             </div>
           </div>
+          {portfolio.portfolio.some(a => a.totalDividends > 0) && (
+            <div className="card mb-3" style={{ background: '#fff3e0', textAlign: 'center', padding: 12 }}>
+              <span style={{ fontSize: 15 }}>📋 股利總計：
+                <strong style={{ color: 'var(--warning)', fontSize: 20 }}>
+                  ${portfolio.portfolio.reduce((s, a) => s + (a.totalDividends || 0), 0).toLocaleString()}
+                </strong>
+              </span>
+            </div>
+          )}
 
           {portfolio.portfolio.length === 0 ? (
             <div className="card text-center" style={{ padding: 40, color: 'var(--text-secondary)' }}>
@@ -123,6 +135,7 @@ export default function InvestmentForm({ categories, onSuccess }) {
                       <th>持有數量</th>
                       <th>平均成本</th>
                       <th>投入本金</th>
+                      <th>股利合計</th>
                       <th>已實現損益</th>
                       <th>報酬率</th>
                       <th>配置比例</th>
@@ -138,6 +151,9 @@ export default function InvestmentForm({ categories, onSuccess }) {
                           <td>{a.totalShares.toFixed(2)}</td>
                           <td>${a.avgCost.toLocaleString()}</td>
                           <td style={{ color: 'var(--danger)' }}>-${a.totalInvested.toLocaleString()}</td>
+                          <td style={{ color: 'var(--warning)', fontWeight: 700 }}>
+                            +${(a.totalDividends || 0).toLocaleString()}
+                          </td>
                           <td style={{ color: a.totalPL >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
                             {a.totalPL >= 0 ? '+' : ''}${a.totalPL.toLocaleString()}
                           </td>
@@ -280,6 +296,89 @@ export default function InvestmentForm({ categories, onSuccess }) {
       )}
 
       <style>{styles}</style>
+    </div>
+  )
+}
+
+function CompoundCalculator() {
+  const [principal, setPrincipal] = useState('100000')
+  const [rate, setRate] = useState('5')
+  const [years, setYears] = useState('10')
+  const [freq, setFreq] = useState('12')
+  const [extra, setExtra] = useState('0')
+
+  const freqLabels = { 1: '每年', 4: '每季', 12: '每月' }
+  const P = parseFloat(principal) || 0
+  const r = (parseFloat(rate) || 0) / 100
+  const n = parseInt(freq) || 1
+  const t = parseFloat(years) || 0
+  const E = parseFloat(extra) || 0
+
+  const fv = P * Math.pow(1 + r / n, n * t)
+  let totalExtra = 0
+  if (E > 0) {
+    totalExtra = E * ((Math.pow(1 + r / n, n * t) - 1) / (r / n))
+  }
+  const finalAmount = fv + totalExtra
+  const totalContrib = P + (E * n * t)
+  const interest = finalAmount - totalContrib
+
+  return (
+    <div className="card">
+      <h2 style={{ fontWeight: 700, marginBottom: 16 }}>複利計算器</h2>
+      <div className="grid-3">
+        <div className="input-group">
+          <label>本金</label>
+          <input type="number" value={principal} onChange={e => setPrincipal(e.target.value)} />
+        </div>
+        <div className="input-group">
+          <label>年利率 (%)</label>
+          <input type="number" step="0.1" value={rate} onChange={e => setRate(e.target.value)} />
+        </div>
+        <div className="input-group">
+          <label>期數（年）</label>
+          <input type="number" step="0.5" value={years} onChange={e => setYears(e.target.value)} />
+        </div>
+      </div>
+      <div className="grid-3">
+        <div className="input-group">
+          <label>複利頻率</label>
+          <select value={freq} onChange={e => setFreq(e.target.value)}>
+            {Object.entries(freqLabels).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+        </div>
+        <div className="input-group">
+          <label>每期投入金額</label>
+          <input type="number" value={extra} onChange={e => setExtra(e.target.value)} />
+        </div>
+        <div className="input-group" style={{ justifyContent: 'center' }}>
+          <label style={{ opacity: 0 }}>.</label>
+          <button className="btn btn-outline btn-sm" onClick={() => { setPrincipal(''); setRate(''); setYears(''); setExtra('') }}>清除</button>
+        </div>
+      </div>
+
+      {t > 0 && (
+        <div className="grid-3 mt-2">
+          <div className="card text-center" style={{ padding: 16, background: '#e3f2fd' }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>最終總額</div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--primary)' }}>
+              ${Math.round(finalAmount).toLocaleString()}
+            </div>
+          </div>
+          <div className="card text-center" style={{ padding: 16, background: '#e8f5e9' }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>總投入本金</div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--success)' }}>
+              ${Math.round(totalContrib).toLocaleString()}
+            </div>
+          </div>
+          <div className="card text-center" style={{ padding: 16, background: '#fff3e0' }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>複利收益</div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--warning)' }}>
+              ${Math.round(interest).toLocaleString()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

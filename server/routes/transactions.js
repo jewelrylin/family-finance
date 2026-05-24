@@ -61,9 +61,10 @@ router.get('/portfolio', authenticate, async (req, res) => {
       const avgCost = a.totalShares > 0 ? a.totalInvested / a.totalShares : 0;
       const marketValue = a.totalShares * (a.buys[a.buys.length - 1]?.current_price || avgCost);
       const unrealizedPL = marketValue - (a.totalShares * avgCost);
+      const totalDividends = a.dividends.reduce((s, d) => s + d.amount, 0);
       const totalPL = a.totalReturn - a.totalInvested;
       const roi = a.totalInvested > 0 ? ((a.totalReturn - a.totalInvested) / a.totalInvested * 100) : 0;
-      return { ...a, avgCost: Math.round(avgCost * 100) / 100, marketValue: Math.round(marketValue), unrealizedPL: Math.round(unrealizedPL), totalPL, roi: Math.round(roi * 100) / 100 };
+      return { ...a, totalDividends, avgCost: Math.round(avgCost * 100) / 100, marketValue: Math.round(marketValue), unrealizedPL: Math.round(unrealizedPL), totalPL, roi: Math.round(roi * 100) / 100 };
     });
 
     const grandTotal = portfolio.reduce((s, a) => s + a.totalInvested, 0);
