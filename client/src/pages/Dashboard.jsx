@@ -8,12 +8,14 @@ import ExpenseForm from '../components/ExpenseForm'
 import InvestmentForm from '../components/InvestmentForm'
 import FamilyInvestmentSummary from '../components/FamilyInvestmentSummary'
 import FinancialAnalysis from '../components/FinancialAnalysis'
+import DepositForm from '../components/DepositForm'
 
 const TABS = [
   { key: 'income', label: '收入', icon: '📈' },
   { key: 'expense', label: '支出', icon: '📉' },
+  { key: 'deposit', label: '銀行存款', icon: '🏦' },
   { key: 'investment', label: '個人投資', icon: '💹' },
-  { key: 'family-investment', label: '家庭總投資', icon: '🏦' },
+  { key: 'family-investment', label: '家庭總投資', icon: '🏛️' },
   { key: 'analysis', label: '財務分析', icon: '📊' },
 ]
 
@@ -60,6 +62,8 @@ export default function Dashboard() {
         return <IncomeForm categories={categories.income || []} onSuccess={triggerRefresh} transactions={transactions.filter(t => t.type === 'income')} />
       case 'expense':
         return <ExpenseForm categories={categories.expense || []} onSuccess={triggerRefresh} transactions={transactions.filter(t => t.type === 'expense')} />
+      case 'deposit':
+        return <DepositForm categories={categories.deposit || []} onSuccess={triggerRefresh} transactions={transactions.filter(t => t.type === 'deposit')} />
       case 'investment':
         return <InvestmentForm categories={categories.investment || []} onSuccess={triggerRefresh} />
       case 'family-investment':

@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   id BIGSERIAL PRIMARY KEY,
   user_id BIGINT NOT NULL REFERENCES users(id),
   family_id BIGINT NOT NULL REFERENCES families(id),
-  type TEXT NOT NULL CHECK(type IN ('income', 'expense', 'investment')),
+  type TEXT NOT NULL CHECK(type IN ('income', 'expense', 'investment', 'deposit')),
   category TEXT NOT NULL,
   amount REAL NOT NULL,
   note TEXT DEFAULT '',

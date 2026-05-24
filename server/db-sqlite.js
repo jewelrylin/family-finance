@@ -33,7 +33,7 @@ conn.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     family_id INTEGER NOT NULL,
-    type TEXT NOT NULL CHECK(type IN ('income','expense','investment')),
+    type TEXT NOT NULL CHECK(type IN ('income','expense','investment','deposit')),
     category TEXT NOT NULL,
     amount REAL NOT NULL,
     note TEXT DEFAULT '',
