@@ -18,28 +18,17 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const { type, startDate, endDate } = req.query;
     const familyId = req.user.family_id;
+    if (!familyId) return res.status(400).json({ error: '請先加入或建立一個家庭' });
 
-    if (!familyId) {
-      return res.status(400).json({ error: '請先加入或建立一個家庭' });
-    }
+    let rows = type
+      ? await db.getTransactionsByFamilyAndType(familyId, type)
+      : await db.getTransactionsByFamily(familyId);
 
-    let rows;
-    if (type) {
-      rows = await db.getTransactionsByFamilyAndType(familyId, type);
-    } else {
-      rows = await db.getTransactionsByFamily(familyId);
-    }
-
-    if (startDate) {
-      rows = rows.filter(r => r.date >= startDate);
-    }
-    if (endDate) {
-      rows = rows.filter(r => r.date <= endDate);
-    }
-
+    if (startDate) rows = rows.filter(r => r.date >= startDate);
+    if (endDate) rows = rows.filter(r => r.date <= endDate);
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ error: err.message || '伺服器錯誤' });
+    res.status(500).json({ error: '伺服器錯誤' });
   }
 });
 
@@ -49,41 +38,33 @@ router.post('/', authenticate, async (req, res) => {
     const familyId = req.user.family_id;
     const userId = req.user.id;
 
-    if (!familyId) {
-      return res.status(400).json({ error: '請先加入或建立一個家庭' });
-    }
-    if (!type || !category || !amount || !date) {
-      return res.status(400).json({ error: '類型、分類、金額、日期為必填' });
-    }
-    if (!CATEGORIES[type] || !CATEGORIES[type].includes(category)) {
-      return res.status(400).json({ error: '無效的分類' });
-    }
+    if (!familyId) return res.status(400).json({ error: '請先加入或建立一個家庭' });
+    if (!type || !category || !amount || !date) return res.status(400).json({ error: '類型、分類、金額、日期為必填' });
+    if (!CATEGORIES[type] || !CATEGORIES[type].includes(category)) return res.status(400).json({ error: '無效的分類' });
 
     await db.createTransaction(userId, familyId, type, category, Number(amount), note || '', date);
     res.status(201).json({ message: '新增成功' });
   } catch (err) {
-    res.status(500).json({ error: err.message || '伺服器錯誤' });
+    res.status(500).json({ error: '伺服器錯誤' });
   }
 });
 
 router.put('/:id', authenticate, async (req, res) => {
   try {
     const { category, amount, note, date } = req.body;
-    const familyId = req.user.family_id;
-    await db.updateTransaction(category, Number(amount), note || '', date, req.params.id, familyId);
+    await db.updateTransaction(category, Number(amount), note || '', date, req.params.id, req.user.family_id);
     res.json({ message: '更新成功' });
   } catch (err) {
-    res.status(500).json({ error: err.message || '伺服器錯誤' });
+    res.status(500).json({ error: '伺服器錯誤' });
   }
 });
 
 router.delete('/:id', authenticate, async (req, res) => {
   try {
-    const familyId = req.user.family_id;
-    await db.deleteTransaction(req.params.id, familyId);
+    await db.deleteTransaction(req.params.id, req.user.family_id);
     res.json({ message: '刪除成功' });
   } catch (err) {
-    res.status(500).json({ error: err.message || '伺服器錯誤' });
+    res.status(500).json({ error: '伺服器錯誤' });
   }
 });
 

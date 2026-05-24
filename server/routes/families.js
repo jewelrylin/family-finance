@@ -15,14 +15,14 @@ router.post('/create', authenticate, async (req, res) => {
     await db.updateUserFamily(family.id, req.user.id);
 
     const token = jwt.sign(
-      { ...req.user, family_id: family.id },
+      { id: req.user.id, email: req.user.email, role: req.user.role, display_name: req.user.display_name, family_id: family.id },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
     res.status(201).json({ family: { id: family.id, name, invite_code: code }, token });
   } catch (err) {
-    res.status(500).json({ error: err.message || '伺服器錯誤' });
+    res.status(500).json({ error: '伺服器錯誤' });
   }
 });
 
@@ -37,14 +37,14 @@ router.post('/join', authenticate, async (req, res) => {
     await db.updateUserFamily(family.id, req.user.id);
 
     const token = jwt.sign(
-      { ...req.user, family_id: family.id },
+      { id: req.user.id, email: req.user.email, role: req.user.role, display_name: req.user.display_name, family_id: family.id },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
     res.json({ family: { id: family.id, name: family.name, invite_code: family.invite_code }, token });
   } catch (err) {
-    res.status(500).json({ error: err.message || '伺服器錯誤' });
+    res.status(500).json({ error: '伺服器錯誤' });
   }
 });
 
@@ -59,7 +59,7 @@ router.get('/my', authenticate, async (req, res) => {
     const members = await db.getUsersByFamily(familyId);
     res.json({ id: family.id, name: family.name, invite_code: family.invite_code, members });
   } catch (err) {
-    res.status(500).json({ error: err.message || '伺服器錯誤' });
+    res.status(500).json({ error: '伺服器錯誤' });
   }
 });
 
