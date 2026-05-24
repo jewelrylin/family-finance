@@ -53,7 +53,7 @@ export default function ExpenseForm({ categories, onSuccess, transactions }) {
             </div>
             <div className="input-group">
               <label>金額</label>
-              <input type="number" step="0.01" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="0" required />
+              <input type="number" step="0.01" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} required />
             </div>
             <div className="input-group">
               <label>日期</label>
@@ -61,7 +61,7 @@ export default function ExpenseForm({ categories, onSuccess, transactions }) {
             </div>
             <div className="input-group">
               <label>備註</label>
-              <input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} placeholder="備註說明" />
+              <input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} />
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>

@@ -46,23 +46,23 @@ export default function Register({ onSwitch }) {
         <form onSubmit={handleSubmit}>
           <div className="input-group">
             <label>Email *</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="example@email.com" required />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
           <div className="input-group">
             <label>顯示名稱（選填，預設使用 Email 前綴）</label>
-            <input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="例如：子捷" />
+            <input value={displayName} onChange={e => setDisplayName(e.target.value)} />
           </div>
           <div className="input-group">
             <label>密碼 *</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="至少4個字元" required />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required />
           </div>
           <div className="input-group">
             <label>確認密碼 *</label>
-            <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="再次輸入密碼" required />
+            <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
           </div>
           <div className="input-group">
             <label>家庭邀請碼（選填，留空則尚未加入家庭）</label>
-            <input value={inviteCode} onChange={e => setInviteCode(e.target.value.toUpperCase())} placeholder="例如：ABC12345" />
+            <input value={inviteCode} onChange={e => setInviteCode(e.target.value.toUpperCase())} />
           </div>
           <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={loading}>
             {loading ? '註冊中...' : '註冊'}

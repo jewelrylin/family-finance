@@ -79,11 +79,11 @@ export default function Login({ onSwitch }) {
             <form onSubmit={handleAdminLogin}>
               <div className="input-group">
                 <label>管理員 Email</label>
-                <input value={adminEmail} onChange={e => setAdminEmail(e.target.value)} placeholder="admin@familyfinance.com" />
+                <input value={adminEmail} onChange={e => setAdminEmail(e.target.value)} />
               </div>
               <div className="input-group">
                 <label>管理員密碼</label>
-                <input type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} placeholder="••••••" />
+                <input type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} />
               </div>
               <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }}>
                 登入管理
@@ -134,7 +134,7 @@ export default function Login({ onSwitch }) {
                       type="text"
                       value={resetPasswords[u.id] || ''}
                       onChange={e => setResetPasswords(prev => ({ ...prev, [u.id]: e.target.value }))}
-                      placeholder="輸入新密碼"
+                     
                       style={{ width: 120, padding: '6px 10px', border: '2px solid var(--border)', borderRadius: 6, fontSize: 14 }}
                     />
                   </td>
@@ -174,11 +174,11 @@ export default function Login({ onSwitch }) {
         <form onSubmit={handleSubmit}>
           <div className="input-group">
             <label>Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="example@email.com" required />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
           <div className="input-group">
             <label>密碼</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••" />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} />
           </div>
           <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={loading}>
             {loading ? '登入中...' : '登入'}

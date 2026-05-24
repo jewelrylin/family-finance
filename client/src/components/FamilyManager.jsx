@@ -76,7 +76,7 @@ export default function FamilyManager({ familyId, onCreate, onJoin, inline }) {
               <form onSubmit={handleCreate}>
                 <div className="input-group">
                   <label>家庭名稱</label>
-                  <input value={name} onChange={e => setName(e.target.value)} placeholder="例如：林家" required />
+                  <input value={name} onChange={e => setName(e.target.value)} required />
                 </div>
                 <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
                   建立家庭
@@ -86,7 +86,7 @@ export default function FamilyManager({ familyId, onCreate, onJoin, inline }) {
               <form onSubmit={handleJoin}>
                 <div className="input-group">
                   <label>邀請碼</label>
-                  <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="請輸入8位邀請碼" required />
+                  <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} required />
                 </div>
                 <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
                   加入家庭
@@ -132,7 +132,7 @@ export default function FamilyManager({ familyId, onCreate, onJoin, inline }) {
                   <form onSubmit={handleCreate}>
                     <div className="input-group">
                       <label>家庭名稱</label>
-                      <input value={name} onChange={e => setName(e.target.value)} placeholder="例如：林家" required />
+                      <input value={name} onChange={e => setName(e.target.value)} required />
                     </div>
                     <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>建立家庭</button>
                   </form>
@@ -140,7 +140,7 @@ export default function FamilyManager({ familyId, onCreate, onJoin, inline }) {
                   <form onSubmit={handleJoin}>
                     <div className="input-group">
                       <label>邀請碼</label>
-                      <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="請輸入8位邀請碼" required />
+                      <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} required />
                     </div>
                     <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>加入家庭</button>
                   </form>
@@ -158,13 +158,13 @@ export default function FamilyManager({ familyId, onCreate, onJoin, inline }) {
         {error && <div className="error-msg" style={{ width: '100%' }}>{error}</div>}
         {mode === 'create' ? (
           <form onSubmit={handleCreate} className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="輸入家庭名稱" style={{ padding: '10px 14px', border: '2px solid var(--border)', borderRadius: 8, fontSize: 15, flex: 1, minWidth: 160 }} required />
+            <input value={name} onChange={e => setName(e.target.value)} style={{ padding: '10px 14px', border: '2px solid var(--border)', borderRadius: 8, fontSize: 15, flex: 1, minWidth: 160 }} required />
             <button type="submit" className="btn btn-primary btn-sm">建立</button>
             <button type="button" className="btn btn-outline btn-sm" onClick={() => setMode('join')}>加入現有家庭</button>
           </form>
         ) : (
           <form onSubmit={handleJoin} className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
-            <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} placeholder="輸入邀請碼" style={{ padding: '10px 14px', border: '2px solid var(--border)', borderRadius: 8, fontSize: 15, flex: 1, minWidth: 160 }} required />
+            <input value={code} onChange={e => setCode(e.target.value.toUpperCase())} style={{ padding: '10px 14px', border: '2px solid var(--border)', borderRadius: 8, fontSize: 15, flex: 1, minWidth: 160 }} required />
             <button type="submit" className="btn btn-primary btn-sm">加入</button>
             <button type="button" className="btn btn-outline btn-sm" onClick={() => setMode('create')}>建立新家庭</button>
           </form>

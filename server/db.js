@@ -19,11 +19,11 @@ function generateInviteCode() {
 }
 
 async function seedAdmin() {
-  const admin = await db.getUserByEmail('admin@familyfinance.com');
+  const admin = await db.getUserByEmail('admin');
   if (!admin) {
     const hash = bcrypt.hashSync('admin123', 10);
-    await db.createUser('admin@familyfinance.com', hash, '管理員', 'admin', null);
-    console.log('Default admin: admin@familyfinance.com / admin123');
+    await db.createUser('admin', hash, '管理員', 'admin', null);
+    console.log('Default admin: admin / admin123');
   }
 }
 
