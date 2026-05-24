@@ -108,6 +108,16 @@ const db = {
     return (data || []).map(t => ({ ...t, display_name: t.users?.display_name || '' }));
   },
 
+  async getTransactionsByUserAndType(userId, type) {
+    const { data } = await supabase
+      .from('transactions')
+      .select('*, users(display_name)')
+      .eq('user_id', userId)
+      .eq('type', type)
+      .order('date', { ascending: false });
+    return (data || []).map(t => ({ ...t, display_name: t.users?.display_name || '' }));
+  },
+
   async updateTransaction(category, amount, note, date, id, familyId) {
     const { error } = await supabase.from('transactions').update({ category, amount, note, date }).eq('id', id).eq('family_id', familyId);
     if (error) throw new Error(error.message);

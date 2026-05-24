@@ -1,12 +1,20 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { api } from '../api'
 
-export default function InvestmentForm({ categories, onSuccess, transactions }) {
+export default function InvestmentForm({ categories, onSuccess }) {
   const [form, setForm] = useState({ category: categories[0] || '', amount: '', note: '', date: new Date().toISOString().split('T')[0] })
+  const [transactions, setTransactions] = useState([])
   const [error, setError] = useState('')
   const [editingId, setEditingId] = useState(null)
 
+  useEffect(() => {
+    api.transactions.list({ type: 'investment', mine: 'true' }).then(setTransactions).catch(() => {})
+  }, [onSuccess])
+
   const total = transactions.reduce((s, t) => s + t.amount, 0)
+  const returns = transactions.filter(t => t.category === '投資收益').reduce((s, t) => s + t.amount, 0)
+  const invested = transactions.filter(t => t.category !== '投資收益').reduce((s, t) => s + t.amount, 0)
+  const roi = invested > 0 ? ((returns - invested) / invested * 100) : 0
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -35,10 +43,6 @@ export default function InvestmentForm({ categories, onSuccess, transactions }) 
     await api.transactions.delete(id)
     onSuccess()
   }
-
-  const totalReturn = transactions.filter(t => t.category === '投資收益').reduce((s, t) => s + t.amount, 0)
-  const totalInvested = transactions.filter(t => t.category !== '投資收益').reduce((s, t) => s + t.amount, 0)
-  const roi = totalInvested > 0 ? ((totalReturn - totalInvested) / totalInvested * 100) : 0
 
   return (
     <div>
@@ -84,13 +88,13 @@ export default function InvestmentForm({ categories, onSuccess, transactions }) 
           <div className="card mb-3">
             <div className="grid-3">
               <div className="text-center">
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>總投資金額</div>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>個人投資總額</div>
                 <div style={{ fontSize: 22, fontWeight: 800 }}>${total.toLocaleString()}</div>
               </div>
               <div className="text-center">
                 <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>投資收益</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: totalReturn >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                  ${totalReturn.toLocaleString()}
+                <div style={{ fontSize: 22, fontWeight: 800, color: returns >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                  ${returns.toLocaleString()}
                 </div>
               </div>
               <div className="text-center">
@@ -103,7 +107,7 @@ export default function InvestmentForm({ categories, onSuccess, transactions }) 
           </div>
 
           <div className="card">
-            <h2 style={{ fontWeight: 700, marginBottom: 16 }}>投資記錄</h2>
+            <h2 style={{ fontWeight: 700, marginBottom: 16 }}>個人投資記錄</h2>
             <div className="transaction-list">
               {transactions.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-secondary)' }}>尚無投資記錄</div>

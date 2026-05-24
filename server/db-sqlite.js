@@ -58,6 +58,7 @@ const s = {
   createTransaction: conn.prepare('INSERT INTO transactions (user_id, family_id, type, category, amount, note, date) VALUES (?, ?, ?, ?, ?, ?, ?)'),
   getTransactionsByFamily: conn.prepare('SELECT t.*, u.display_name FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.family_id = ? ORDER BY t.date DESC, t.created_at DESC'),
   getTransactionsByFamilyAndType: conn.prepare('SELECT t.*, u.display_name FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.family_id = ? AND t.type = ? ORDER BY t.date DESC, t.created_at DESC'),
+  getTransactionsByUserAndType: conn.prepare('SELECT t.*, u.display_name FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.user_id = ? AND t.type = ? ORDER BY t.date DESC, t.created_at DESC'),
   updateTransaction: conn.prepare('UPDATE transactions SET category = ?, amount = ?, note = ?, date = ? WHERE id = ? AND family_id = ?'),
   deleteTransaction: conn.prepare('DELETE FROM transactions WHERE id = ? AND family_id = ?'),
 };
@@ -76,6 +77,7 @@ module.exports = {
   createTransaction: (userId, familyId, type, category, amount, note, date) => { const r = s.createTransaction.run(userId, familyId, type, category, amount, note, date); return { id: r.lastInsertRowid }; },
   getTransactionsByFamily: (familyId) => s.getTransactionsByFamily.all(familyId),
   getTransactionsByFamilyAndType: (familyId, type) => s.getTransactionsByFamilyAndType.all(familyId, type),
+  getTransactionsByUserAndType: (userId, type) => s.getTransactionsByUserAndType.all(userId, type),
   updateTransaction: (category, amount, note, date, id, familyId) => s.updateTransaction.run(category, amount, note, date, id, familyId),
   deleteTransaction: (id, familyId) => s.deleteTransaction.run(id, familyId),
 };
