@@ -1,6 +1,13 @@
 import { useState } from 'react'
 import { api } from '../api'
 
+const BANKS = [
+  '台灣銀行', '合作金庫', '第一銀行', '彰化銀行', '華南銀行',
+  '兆豐銀行', '國泰世華', '中國信託', '富邦銀行', '玉山銀行',
+  '台新銀行', '永豐銀行', '聯邦銀行', '上海銀行', '郵局',
+  '其他',
+]
+
 export default function DepositForm({ categories, onSuccess, transactions }) {
   const [view, setView] = useState('add')
 
@@ -34,7 +41,7 @@ export default function DepositForm({ categories, onSuccess, transactions }) {
 }
 
 function AddDeposit({ categories, onSuccess }) {
-  const [form, setForm] = useState({ category: categories[0] || '', amount: '', note: '', date: new Date().toISOString().split('T')[0] })
+  const [form, setForm] = useState({ category: categories[0] || '', bank: BANKS[0], amount: '', note: '', date: new Date().toISOString().split('T')[0] })
   const [error, setError] = useState('')
 
   const handleSubmit = async (e) => {
@@ -42,7 +49,7 @@ function AddDeposit({ categories, onSuccess }) {
     setError('')
     try {
       await api.transactions.create({ ...form, type: 'deposit' })
-      setForm({ category: categories[0] || '', amount: '', note: '', date: new Date().toISOString().split('T')[0] })
+      setForm({ category: categories[0] || '', bank: BANKS[0], amount: '', note: '', date: new Date().toISOString().split('T')[0] })
       onSuccess()
     } catch (err) {
       setError(err.message)
@@ -54,11 +61,19 @@ function AddDeposit({ categories, onSuccess }) {
       <h2 style={{ fontWeight: 700, marginBottom: 16 }}>新增存款</h2>
       {error && <div className="error-msg">{error}</div>}
       <form onSubmit={handleSubmit}>
-        <div className="input-group">
-          <label>分類</label>
-          <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+        <div className="grid-2">
+          <div className="input-group">
+            <label>分類</label>
+            <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="input-group">
+            <label>銀行</label>
+            <select value={form.bank} onChange={e => setForm({ ...form, bank: e.target.value })}>
+              {BANKS.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
         </div>
         <div className="input-group">
           <label>金額</label>
@@ -82,6 +97,7 @@ function TransferForm({ categories, onSuccess }) {
   const [form, setForm] = useState({
     from: categories[0] || '',
     to: categories[1] || categories[0] || '',
+    bank: BANKS[0],
     amount: '',
     date: new Date().toISOString().split('T')[0],
     note: '',
@@ -104,14 +120,14 @@ function TransferForm({ categories, onSuccess }) {
     try {
       await Promise.all([
         api.transactions.create({
-          type: 'deposit',
+          type: 'deposit', bank: form.bank,
           category: form.from,
           amount: -Math.abs(parseFloat(form.amount)),
           date: form.date,
           note: `轉帳至 ${form.to}${form.note ? ` (${form.note})` : ''}`,
         }),
         api.transactions.create({
-          type: 'deposit',
+          type: 'deposit', bank: form.bank,
           category: form.to,
           amount: Math.abs(parseFloat(form.amount)),
           date: form.date,
@@ -121,6 +137,7 @@ function TransferForm({ categories, onSuccess }) {
       setForm({
         from: categories[0] || '',
         to: categories[1] || categories[0] || '',
+        bank: BANKS[0],
         amount: '',
         date: new Date().toISOString().split('T')[0],
         note: '',
@@ -142,16 +159,24 @@ function TransferForm({ categories, onSuccess }) {
       <h2 style={{ fontWeight: 700, marginBottom: 16 }}>帳戶互轉</h2>
       {error && <div className="error-msg">{error}</div>}
       <form onSubmit={handleSubmit}>
-        <div className="input-group">
-          <label>從（轉出）</label>
-          <select value={form.from} onChange={e => handleFromChange(e.target.value)}>
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+        <div className="grid-2">
+          <div className="input-group">
+            <label>從（轉出）</label>
+            <select value={form.from} onChange={e => handleFromChange(e.target.value)}>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="input-group">
+            <label>到（轉入）</label>
+            <select value={form.to} onChange={e => setForm({ ...form, to: e.target.value })}>
+              {categories.filter(c => c !== form.from).map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
         </div>
         <div className="input-group">
-          <label>到（轉入）</label>
-          <select value={form.to} onChange={e => setForm({ ...form, to: e.target.value })}>
-            {categories.filter(c => c !== form.from).map(c => <option key={c} value={c}>{c}</option>)}
+          <label>銀行</label>
+          <select value={form.bank} onChange={e => setForm({ ...form, bank: e.target.value })}>
+            {BANKS.map(b => <option key={b} value={b}>{b}</option>)}
           </select>
         </div>
         <div className="input-group">
@@ -176,13 +201,19 @@ function TransferForm({ categories, onSuccess }) {
 
 function DepositList({ categories, onSuccess, transactions }) {
   const [editingId, setEditingId] = useState(null)
-  const [editForm, setEditForm] = useState({ category: '', amount: '', note: '', date: '' })
+  const [editForm, setEditForm] = useState({ category: '', bank: '', amount: '', note: '', date: '' })
 
   const total = transactions.reduce((s, t) => s + t.amount, 0)
+  const bankTotals = {}
+  for (const t of transactions) {
+    const bk = t.bank || '未指定'
+    if (!bankTotals[bk]) bankTotals[bk] = 0
+    bankTotals[bk] += t.amount
+  }
 
   const handleEdit = (t) => {
     setEditingId(t.id)
-    setEditForm({ category: t.category, amount: String(t.amount), note: t.note, date: t.date })
+    setEditForm({ category: t.category, bank: t.bank || '', amount: String(t.amount), note: t.note, date: t.date })
   }
 
   const handleUpdate = async (e) => {
@@ -200,7 +231,7 @@ function DepositList({ categories, onSuccess, transactions }) {
 
   return (
     <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h2 style={{ fontWeight: 700 }}>存款記錄</h2>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>總存款金額</div>
@@ -209,13 +240,31 @@ function DepositList({ categories, onSuccess, transactions }) {
           </div>
         </div>
       </div>
+
+      {Object.keys(bankTotals).length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          {Object.entries(bankTotals).map(([bk, amt]) => (
+            <div key={bk} className="card" style={{ padding: '8px 14px', background: '#f0f4ff' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{bk}</span>
+              <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--primary)' }}>${amt.toLocaleString()}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {editingId && (
         <form onSubmit={handleUpdate} style={{ marginBottom: 16, padding: 12, background: '#f8f9fa', borderRadius: 8 }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'end' }}>
-            <div className="input-group" style={{ flex: 1, minWidth: 120 }}>
+            <div className="input-group" style={{ flex: 1, minWidth: 100 }}>
               <label>分類</label>
               <select value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })}>
                 {categories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="input-group" style={{ flex: 1, minWidth: 100 }}>
+              <label>銀行</label>
+              <select value={editForm.bank} onChange={e => setEditForm({ ...editForm, bank: e.target.value })}>
+                {BANKS.map(b => <option key={b} value={b}>{b}</option>)}
               </select>
             </div>
             <div className="input-group" style={{ flex: 1, minWidth: 100 }}>
@@ -226,7 +275,7 @@ function DepositList({ categories, onSuccess, transactions }) {
               <label>日期</label>
               <input type="date" value={editForm.date} onChange={e => setEditForm({ ...editForm, date: e.target.value })} required />
             </div>
-            <div className="input-group" style={{ flex: 2, minWidth: 140 }}>
+            <div className="input-group" style={{ flex: 1, minWidth: 100 }}>
               <label>備註</label>
               <input value={editForm.note} onChange={e => setEditForm({ ...editForm, note: e.target.value })} />
             </div>
@@ -245,7 +294,11 @@ function DepositList({ categories, onSuccess, transactions }) {
             <div key={t.id} className="transaction-item">
               <div>
                 <div style={{ fontWeight: 600 }}>{t.category}</div>
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t.date} {t.note && `- ${t.note}`}</div>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  {t.date}
+                  {t.bank && <span style={{ background: '#e3f2fd', padding: '1px 6px', borderRadius: 4, marginLeft: 6 }}>{t.bank}</span>}
+                  {t.note && ` - ${t.note}`}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <span style={{ fontWeight: 700, fontSize: 18, color: t.amount >= 0 ? 'var(--primary)' : 'var(--danger)' }}>

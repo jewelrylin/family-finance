@@ -25,6 +25,13 @@ CREATE TABLE IF NOT EXISTS transactions (
   category TEXT NOT NULL,
   amount REAL NOT NULL,
   note TEXT DEFAULT '',
+  asset_name TEXT DEFAULT '',
+  quantity REAL DEFAULT 0,
+  unit_price REAL DEFAULT 0,
+  fee REAL DEFAULT 0,
+  tx_type TEXT DEFAULT 'buy' CHECK(tx_type IN ('buy', 'sell', 'dividend')),
+  current_price REAL DEFAULT 0,
+  bank TEXT DEFAULT '',
   date DATE NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
