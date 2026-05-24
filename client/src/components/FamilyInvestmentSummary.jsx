@@ -1,17 +1,12 @@
 import { useState, useEffect } from 'react'
-import { api } from '../api'
 
 export default function FamilyInvestmentSummary() {
   const [data, setData] = useState(null)
 
   useEffect(() => {
-    api.transactions.list({ type: 'investment' }).then(all => {
-      const total = all.reduce((s, t) => s + t.amount, 0)
-      const returns = all.filter(t => t.category === '投資收益').reduce((s, t) => s + t.amount, 0)
-      const invested = all.filter(t => t.category !== '投資收益').reduce((s, t) => s + t.amount, 0)
-      const roi = invested > 0 ? ((returns - invested) / invested * 100) : 0
-      setData({ total, returns, invested, roi, count: all.length })
-    }).catch(() => {})
+    fetch('/api/transactions/investment-summary', {
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
+    }).then(r => r.json()).then(setData).catch(() => {})
   }, [])
 
   if (!data) {
@@ -32,28 +27,37 @@ export default function FamilyInvestmentSummary() {
         </p>
       </div>
 
-      <div className="grid-3">
+      <div className="grid-4">
         <div className="card text-center">
-          <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 8 }}>總投資金額</div>
-          <div style={{ fontSize: 36, fontWeight: 800 }}>
-            ${data.total.toLocaleString()}
-          </div>
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
-            本金：${data.invested.toLocaleString()}
+          <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 8 }}>總投入本金</div>
+          <div style={{ fontSize: 32, fontWeight: 800 }}>
+            ${data.totalCost.toLocaleString()}
           </div>
         </div>
 
         <div className="card text-center">
-          <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 8 }}>投資收益</div>
-          <div style={{ fontSize: 36, fontWeight: 800, color: data.returns >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-            ${data.returns.toLocaleString()}
+          <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 8 }}>目前市值</div>
+          <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--primary)' }}>
+            ${data.totalMV.toLocaleString()}
           </div>
+        </div>
+
+        <div className="card text-center">
+          <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 8 }}>總損益（含股利）</div>
+          <div style={{ fontSize: 32, fontWeight: 800, color: data.totalReturn >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+            {data.totalReturn >= 0 ? '+' : ''}${data.totalReturn.toLocaleString()}
+          </div>
+          {data.totalDividends > 0 && (
+            <div style={{ fontSize: 13, color: 'var(--warning)', marginTop: 4 }}>
+              含股利 ${data.totalDividends.toLocaleString()}
+            </div>
+          )}
         </div>
 
         <div className="card text-center">
           <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 8 }}>整體報酬率</div>
-          <div style={{ fontSize: 36, fontWeight: 800, color: data.roi >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-            {data.roi.toFixed(1)}%
+          <div style={{ fontSize: 32, fontWeight: 800, color: data.roi >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+            {data.roi >= 0 ? '+' : ''}{data.roi}%
           </div>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
             {data.roi >= 0 ? '📈 正報酬' : '📉 負報酬'}

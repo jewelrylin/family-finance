@@ -137,11 +137,51 @@ router.get('/investment-summary', authenticate, async (req, res) => {
     if (!familyId) return res.status(400).json({ error: '請先加入或建立一個家庭' });
 
     const all = await db.getTransactionsByFamilyAndType(familyId, 'investment');
-    const total = all.reduce((s, t) => s + t.amount, 0);
-    const returns = all.filter(t => t.category === '投資收益').reduce((s, t) => s + t.amount, 0);
-    const invested = all.filter(t => t.category !== '投資收益').reduce((s, t) => s + t.amount, 0);
-    const roi = invested > 0 ? ((returns - invested) / invested * 100) : 0;
-    res.json({ total, returns, invested, roi, count: all.length });
+    const assets = {};
+
+    for (const t of all) {
+      const key = t.asset_name || t.category;
+      if (!assets[key]) assets[key] = { buys: [], sells: [], dividends: [], totalShares: 0 };
+      if (t.tx_type === 'buy') {
+        assets[key].buys.push(t);
+        assets[key].totalShares += t.quantity || 0;
+      } else if (t.tx_type === 'sell') {
+        assets[key].sells.push(t);
+        assets[key].totalShares -= t.quantity || 0;
+      } else if (t.tx_type === 'dividend') {
+        assets[key].dividends.push(t);
+      }
+    }
+
+    let totalCost = 0, totalMV = 0, totalSells = 0, totalDividends = 0;
+
+    for (const a of Object.values(assets)) {
+      const totalSharesBought = a.buys.reduce((s, b) => s + (b.quantity || 0), 0);
+      totalSells += a.sells.reduce((s, t) => s + t.amount, 0);
+      totalDividends += a.dividends.reduce((s, t) => s + t.amount, 0);
+      const fractionHeld = totalSharesBought > 0 ? Math.max(0, a.totalShares) / totalSharesBought : 0;
+      for (const b of a.buys) {
+        totalCost += b.amount;
+        const cp = b.current_price || 0;
+        const up = b.unit_price || 0;
+        if (up > 0 && cp > 0) {
+          totalMV += b.amount * (cp / up) * fractionHeld;
+        }
+      }
+    }
+
+    const totalReturn = totalMV + totalSells + totalDividends - totalCost;
+    const roi = totalCost > 0 ? (totalReturn / totalCost * 100) : 0;
+
+    res.json({
+      totalCost: Math.round(totalCost),
+      totalMV: Math.round(totalMV),
+      totalSells: Math.round(totalSells),
+      totalDividends: Math.round(totalDividends),
+      totalReturn: Math.round(totalReturn),
+      roi: Math.round(roi * 100) / 100,
+      count: all.length,
+    });
   } catch (err) {
     res.status(500).json({ error: '伺服器錯誤' });
   }
