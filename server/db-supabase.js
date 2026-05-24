@@ -77,12 +77,14 @@ const db = {
     return data || [];
   },
 
-  async createTransaction(userId, familyId, type, category, amount, note, assetName, quantity, unitPrice, fee, txType, currentPrice, date, bank) {
+  async createTransaction(userId, familyId, type, category, amount, note, assetName, quantity, unitPrice, fee, txType, currentPrice, date, bank, recurring, recurringFreq) {
     const { data, error } = await supabase.from('transactions').insert({
       user_id: userId, family_id: familyId, type, category, amount, note,
       asset_name: assetName || '', quantity: quantity || 0, unit_price: unitPrice || 0,
       fee: fee || 0, tx_type: txType || 'buy', current_price: currentPrice || 0, date,
       bank: bank || '',
+      recurring: recurring || false,
+      recurring_freq: recurringFreq || '',
     }).select().single();
     if (error) throw new Error(error.message);
     return data;
@@ -117,12 +119,14 @@ const db = {
     return (data || []).map(t => ({ ...t, display_name: t.users?.display_name || '' }));
   },
 
-  async updateTransaction(category, amount, note, assetName, quantity, unitPrice, fee, txType, currentPrice, date, id, familyId, bank) {
+  async updateTransaction(category, amount, note, assetName, quantity, unitPrice, fee, txType, currentPrice, date, id, familyId, bank, recurring, recurringFreq) {
     const { error } = await supabase.from('transactions').update({
       category, amount, note,
       asset_name: assetName || '', quantity: quantity || 0, unit_price: unitPrice || 0,
       fee: fee || 0, tx_type: txType || 'buy', current_price: currentPrice || 0, date,
       bank: bank || '',
+      recurring: recurring || false,
+      recurring_freq: recurringFreq || '',
     }).eq('id', id).eq('family_id', familyId);
     if (error) throw new Error(error.message);
   },

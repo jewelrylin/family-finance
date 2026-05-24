@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { api } from '../api'
 
 export default function ExpenseForm({ categories, onSuccess, transactions }) {
-  const [form, setForm] = useState({ category: categories[0] || '', amount: '', note: '', date: new Date().toISOString().split('T')[0] })
+  const [form, setForm] = useState({ category: categories[0] || '', amount: '', note: '', date: new Date().toISOString().split('T')[0], recurring: false, recurringFreq: 'monthly' })
   const [error, setError] = useState('')
   const [editingId, setEditingId] = useState(null)
 
@@ -17,7 +17,7 @@ export default function ExpenseForm({ categories, onSuccess, transactions }) {
       } else {
         await api.transactions.create({ ...form, type: 'expense' })
       }
-      setForm({ category: categories[0] || '', amount: '', note: '', date: new Date().toISOString().split('T')[0] })
+      setForm({ category: categories[0] || '', amount: '', note: '', date: new Date().toISOString().split('T')[0], recurring: false, recurringFreq: 'monthly' })
       setEditingId(null)
       onSuccess()
     } catch (err) {
@@ -26,7 +26,7 @@ export default function ExpenseForm({ categories, onSuccess, transactions }) {
   }
 
   const handleEdit = (t) => {
-    setForm({ category: t.category, amount: String(t.amount), note: t.note, date: t.date })
+    setForm({ category: t.category, amount: String(t.amount), note: t.note, date: t.date, recurring: t.recurring || false, recurringFreq: t.recurring_freq || 'monthly' })
     setEditingId(t.id)
   }
 
@@ -63,12 +63,25 @@ export default function ExpenseForm({ categories, onSuccess, transactions }) {
               <label>備註</label>
               <input value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} />
             </div>
+            <div className="input-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.recurring} onChange={e => setForm({ ...form, recurring: e.target.checked })} />
+                🔄 設為固定支出
+              </label>
+              {form.recurring && (
+                <select value={form.recurringFreq} onChange={e => setForm({ ...form, recurringFreq: e.target.value })} style={{ marginTop: 8 }}>
+                  <option value="monthly">每月</option>
+                  <option value="weekly">每週</option>
+                  <option value="yearly">每年</option>
+                </select>
+              )}
+            </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
                 {editingId ? '更新' : '新增'}
               </button>
               {editingId && (
-                <button type="button" className="btn btn-outline" onClick={() => { setEditingId(null); setForm({ category: categories[0] || '', amount: '', note: '', date: new Date().toISOString().split('T')[0] }) }}>
+                <button type="button" className="btn btn-outline" onClick={() => { setEditingId(null); setForm({ category: categories[0] || '', amount: '', note: '', date: new Date().toISOString().split('T')[0], recurring: false, recurringFreq: 'monthly' }) }}>
                   取消
                 </button>
               )}
@@ -80,7 +93,7 @@ export default function ExpenseForm({ categories, onSuccess, transactions }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h2 style={{ fontWeight: 700 }}>支出記錄</h2>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>本月總支出</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>總支出</div>
               <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--danger)' }}>
                 ${total.toLocaleString()}
               </div>
@@ -93,7 +106,10 @@ export default function ExpenseForm({ categories, onSuccess, transactions }) {
               transactions.map(t => (
                 <div key={t.id} className="transaction-item">
                   <div>
-                    <div style={{ fontWeight: 600 }}>{t.category}</div>
+                    <div style={{ fontWeight: 600 }}>
+                      {t.category}
+                      {t.recurring && <span className="recurring-badge">🔄 {t.recurring_freq === 'weekly' ? '每週' : t.recurring_freq === 'yearly' ? '每年' : '每月'}</span>}
+                    </div>
                     <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{t.date} {t.note && `- ${t.note}`}</div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -121,4 +137,9 @@ const transactionStyles = `
     padding: 12px 0; border-bottom: 1px solid var(--border);
   }
   .transaction-item:last-child { border-bottom: none; }
+  .recurring-badge {
+    display: inline-block; font-size: 11px; font-weight: 600;
+    background: #e3f2fd; color: #1565c0;
+    padding: 1px 6px; border-radius: 4px; margin-left: 6px;
+  }
 `

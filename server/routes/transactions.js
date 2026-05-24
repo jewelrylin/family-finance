@@ -189,7 +189,7 @@ router.get('/investment-summary', authenticate, async (req, res) => {
 
 router.post('/', authenticate, async (req, res) => {
   try {
-    const { type, category, amount, note, assetName, quantity, unitPrice, fee, txType, currentPrice, date, bank } = req.body;
+    const { type, category, amount, note, assetName, quantity, unitPrice, fee, txType, currentPrice, date, bank, recurring, recurringFreq } = req.body;
     const familyId = req.user.family_id;
     const userId = req.user.id;
 
@@ -199,7 +199,7 @@ router.post('/', authenticate, async (req, res) => {
 
     await db.createTransaction(userId, familyId, type, category, Number(amount), note || '',
       assetName, Number(quantity) || 0, Number(unitPrice) || 0, Number(fee) || 0,
-      txType || 'buy', Number(currentPrice) || 0, date, bank || '');
+      txType || 'buy', Number(currentPrice) || 0, date, bank || '', recurring || false, recurringFreq || '');
     res.status(201).json({ message: '新增成功' });
   } catch (err) {
     res.status(500).json({ error: '伺服器錯誤' });
@@ -208,10 +208,11 @@ router.post('/', authenticate, async (req, res) => {
 
 router.put('/:id', authenticate, async (req, res) => {
   try {
-    const { category, amount, note, assetName, quantity, unitPrice, fee, txType, currentPrice, date, bank } = req.body;
+    const { category, amount, note, assetName, quantity, unitPrice, fee, txType, currentPrice, date, bank, recurring, recurringFreq } = req.body;
     await db.updateTransaction(category, Number(amount), note || '',
       assetName, Number(quantity) || 0, Number(unitPrice) || 0, Number(fee) || 0,
-      txType || 'buy', Number(currentPrice) || 0, date, req.params.id, req.user.family_id, bank || '');
+      txType || 'buy', Number(currentPrice) || 0, date, req.params.id, req.user.family_id, bank || '',
+      recurring || false, recurringFreq || '');
     res.json({ message: '更新成功' });
   } catch (err) {
     res.status(500).json({ error: '伺服器錯誤' });

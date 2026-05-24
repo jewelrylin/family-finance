@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS transactions (
   tx_type TEXT DEFAULT 'buy' CHECK(tx_type IN ('buy', 'sell', 'dividend')),
   current_price REAL DEFAULT 0,
   bank TEXT DEFAULT '',
+  recurring BOOLEAN DEFAULT FALSE,
+  recurring_freq TEXT DEFAULT '',
   date DATE NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
