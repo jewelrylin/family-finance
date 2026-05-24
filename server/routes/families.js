@@ -22,7 +22,7 @@ router.post('/create', authenticate, async (req, res) => {
 
     res.status(201).json({ family: { id: family.id, name, invite_code: code }, token });
   } catch (err) {
-    res.status(500).json({ error: '伺服器錯誤' });
+    res.status(500).json({ error: err.message || '伺服器錯誤' });
   }
 });
 
@@ -44,20 +44,23 @@ router.post('/join', authenticate, async (req, res) => {
 
     res.json({ family: { id: family.id, name: family.name, invite_code: family.invite_code }, token });
   } catch (err) {
-    res.status(500).json({ error: '伺服器錯誤' });
+    res.status(500).json({ error: err.message || '伺服器錯誤' });
   }
 });
 
 router.get('/my', authenticate, async (req, res) => {
-  const familyId = req.user.family_id;
-  if (!familyId) return res.status(404).json({ error: '尚未加入家庭' });
+  try {
+    const familyId = req.user.family_id;
+    if (!familyId) return res.status(404).json({ error: '尚未加入家庭' });
 
-  const family = await db.getFamilyById(familyId);
-  if (!family) return res.status(404).json({ error: '家庭不存在' });
+    const family = await db.getFamilyById(familyId);
+    if (!family) return res.status(404).json({ error: '家庭不存在' });
 
-  const members = await db.getUsersByFamily(familyId);
-
-  res.json({ id: family.id, name: family.name, invite_code: family.invite_code, members });
+    const members = await db.getUsersByFamily(familyId);
+    res.json({ id: family.id, name: family.name, invite_code: family.invite_code, members });
+  } catch (err) {
+    res.status(500).json({ error: err.message || '伺服器錯誤' });
+  }
 });
 
 module.exports = router;

@@ -15,28 +15,32 @@ router.get('/categories', (req, res) => {
 });
 
 router.get('/', authenticate, async (req, res) => {
-  const { type, startDate, endDate } = req.query;
-  const familyId = req.user.family_id;
+  try {
+    const { type, startDate, endDate } = req.query;
+    const familyId = req.user.family_id;
 
-  if (!familyId) {
-    return res.status(400).json({ error: '請先加入或建立一個家庭' });
-  }
+    if (!familyId) {
+      return res.status(400).json({ error: '請先加入或建立一個家庭' });
+    }
 
-  let rows;
-  if (type) {
-    rows = await db.getTransactionsByFamilyAndType(familyId, type);
-  } else {
-    rows = await db.getTransactionsByFamily(familyId);
-  }
+    let rows;
+    if (type) {
+      rows = await db.getTransactionsByFamilyAndType(familyId, type);
+    } else {
+      rows = await db.getTransactionsByFamily(familyId);
+    }
 
-  if (startDate) {
-    rows = rows.filter(r => r.date >= startDate);
-  }
-  if (endDate) {
-    rows = rows.filter(r => r.date <= endDate);
-  }
+    if (startDate) {
+      rows = rows.filter(r => r.date >= startDate);
+    }
+    if (endDate) {
+      rows = rows.filter(r => r.date <= endDate);
+    }
 
-  res.json(rows);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message || '伺服器錯誤' });
+  }
 });
 
 router.post('/', authenticate, async (req, res) => {
@@ -58,7 +62,7 @@ router.post('/', authenticate, async (req, res) => {
     await db.createTransaction(userId, familyId, type, category, Number(amount), note || '', date);
     res.status(201).json({ message: '新增成功' });
   } catch (err) {
-    res.status(500).json({ error: '伺服器錯誤' });
+    res.status(500).json({ error: err.message || '伺服器錯誤' });
   }
 });
 
@@ -69,7 +73,7 @@ router.put('/:id', authenticate, async (req, res) => {
     await db.updateTransaction(category, Number(amount), note || '', date, req.params.id, familyId);
     res.json({ message: '更新成功' });
   } catch (err) {
-    res.status(500).json({ error: '伺服器錯誤' });
+    res.status(500).json({ error: err.message || '伺服器錯誤' });
   }
 });
 
@@ -79,7 +83,7 @@ router.delete('/:id', authenticate, async (req, res) => {
     await db.deleteTransaction(req.params.id, familyId);
     res.json({ message: '刪除成功' });
   } catch (err) {
-    res.status(500).json({ error: '伺服器錯誤' });
+    res.status(500).json({ error: err.message || '伺服器錯誤' });
   }
 });
 
