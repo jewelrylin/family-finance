@@ -69,33 +69,34 @@ router.get('/portfolio', authenticate, async (req, res) => {
 
     const portfolio = Object.values(assets).map(a => {
       const currentPrice = a.latestPrice || 0;
-      const avgCost = a.totalShares > 0 ? a.totalInvested / a.totalShares : 0;
+      const totalSharesBought = a.buys.reduce((s, b) => s + (b.quantity || 0), 0);
+      const totalCost = a.buys.reduce((s, b) => s + (b.quantity || 0) * (b.unit_price || 0), 0);
+      const avgCost = totalSharesBought > 0 ? totalCost / totalSharesBought : 0;
       const marketValue = a.totalShares * currentPrice;
-      const costBasis = a.totalShares * avgCost;
-      const unrealizedPL = marketValue - costBasis;
-      const totalPL = marketValue + a.totalSells + a.totalDividends - a.totalInvested;
-      const totalIn = a.totalInvested;
-      const totalOut = a.totalSells + a.totalDividends + marketValue;
-      const roi = totalIn > 0 ? ((totalOut - totalIn) / totalIn * 100) : 0;
+      const costOfHeld = a.totalShares * avgCost;
+      const unrealizedPL = marketValue - costOfHeld;
+      const totalPL = marketValue + a.totalSells + a.totalDividends - totalCost;
+      const roi = totalCost > 0 ? (totalPL / totalCost * 100) : 0;
       return {
         ...a, avgCost: Math.round(avgCost * 100) / 100,
         currentPrice, marketValue: Math.round(marketValue),
+        totalCost: Math.round(totalCost),
         unrealizedPL: Math.round(unrealizedPL),
         totalPL: Math.round(totalPL), roi: Math.round(roi * 100) / 100,
       };
     });
 
-    const grandInvested = portfolio.reduce((s, a) => s + a.totalInvested, 0);
+    const grandCost = portfolio.reduce((s, a) => s + a.totalCost, 0);
     const grandMV = portfolio.reduce((s, a) => s + a.marketValue, 0);
     const grandSells = portfolio.reduce((s, a) => s + a.totalSells, 0);
     const grandDivs = portfolio.reduce((s, a) => s + a.totalDividends, 0);
-    const grandReturn = grandMV + grandSells + grandDivs - grandInvested;
-    const grandROI = grandInvested > 0 ? (grandReturn / grandInvested * 100) : 0;
+    const grandReturn = grandMV + grandSells + grandDivs - grandCost;
+    const grandROI = grandCost > 0 ? (grandReturn / grandCost * 100) : 0;
 
     res.json({
       portfolio,
       summary: {
-        totalInvested: grandInvested,
+        totalCost: Math.round(grandCost),
         totalReturn: Math.round(grandReturn),
         roi: Math.round(grandROI * 100) / 100,
         assetCount: portfolio.length,

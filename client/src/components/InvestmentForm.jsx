@@ -94,7 +94,7 @@ export default function InvestmentForm({ categories, onSuccess }) {
           <div className="grid-4 mb-3">
             <div className="card text-center">
               <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>總投入本金</div>
-              <div style={{ fontSize: 24, fontWeight: 800 }}>${portfolio.summary.totalInvested.toLocaleString()}</div>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>${portfolio.summary.totalCost.toLocaleString()}</div>
             </div>
             <div className="card text-center">
               <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>目前市值</div>
@@ -149,7 +149,7 @@ export default function InvestmentForm({ categories, onSuccess }) {
                   </thead>
                   <tbody>
                     {portfolio.portfolio.map(a => {
-                      const allocPct = portfolio.summary.totalInvested > 0 ? (a.totalInvested / portfolio.summary.totalInvested * 100) : 0
+                      const allocPct = portfolio.summary.totalCost > 0 ? (a.totalCost / portfolio.summary.totalCost * 100) : 0
                       return (
                         <tr key={a.name}>
                           <td style={{ fontWeight: 700 }}>{a.name}</td>
@@ -158,7 +158,7 @@ export default function InvestmentForm({ categories, onSuccess }) {
                           <td>${a.avgCost.toLocaleString()}</td>
                           <td style={{ fontWeight: 600 }}>${(a.currentPrice || 0).toLocaleString()}</td>
                           <td style={{ color: 'var(--primary)', fontWeight: 600 }}>${a.marketValue.toLocaleString()}</td>
-                          <td style={{ color: 'var(--danger)' }}>${a.totalInvested.toLocaleString()}</td>
+                          <td style={{ color: 'var(--danger)' }}>${a.totalCost.toLocaleString()}</td>
                           <td style={{ color: 'var(--warning)', fontWeight: 600 }}>
                             +${(a.totalDividends || 0).toLocaleString()}
                           </td>
