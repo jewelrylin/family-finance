@@ -206,7 +206,20 @@ export default function InvestmentForm({ categories, onSuccess }) {
               </div>
               <div className="input-group">
                 <label>現價（用於計算未實現損益）</label>
-                <input type="number" step="0.01" value={form.currentPrice} onChange={e => setForm({ ...form, currentPrice: e.target.value })} />
+                <div className="flex items-center gap-2">
+                  <input type="number" step="0.01" value={form.currentPrice} onChange={e => setForm({ ...form, currentPrice: e.target.value })} style={{ flex: 1 }} />
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={async () => {
+                    const sym = form.assetName.trim()
+                    if (!sym) { setError('請先輸入投資標的名稱'); return }
+                    setError('')
+                    try {
+                      const r = await fetch(`/api/prices/${encodeURIComponent(sym)}`, { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') } })
+                      const d = await r.json()
+                      if (!r.ok) throw new Error(d.error)
+                      setForm(prev => ({ ...prev, currentPrice: String(d.price) }))
+                    } catch (e) { setError('查價失敗：' + e.message) }
+                  }}>🔍 獲取現價</button>
+                </div>
               </div>
               <div className="input-group">
                 <label>交易日期 *</label>

@@ -5,6 +5,7 @@ const path = require('path');
 const authRoutes = require('./routes/auth');
 const transactionRoutes = require('./routes/transactions');
 const familyRoutes = require('./routes/families');
+const priceRoutes = require('./routes/prices');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -15,6 +16,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/families', familyRoutes);
+app.use('/api/prices', priceRoutes);
 
 const clientBuild = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientBuild));
