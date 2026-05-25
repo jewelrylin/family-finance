@@ -4,8 +4,8 @@ import {
   ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell
 } from 'recharts'
 
-const COLORS = ['#0d47a1', '#1565c0', '#1976d2', '#1e88e5', '#42a5f5', '#64b5f6',
-  '#ff8f00', '#ffa000', '#ffb300', '#ffc107', '#ffd54f', '#ffe082']
+const COLORS = ['#0d47a1', '#c62828', '#2e7d32', '#ff8f00', '#6a1b9a', '#00838f',
+  '#d81b60', '#558b2f', '#1565c0', '#e65100', '#283593', '#4e342e']
 
 const MONTHS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
 

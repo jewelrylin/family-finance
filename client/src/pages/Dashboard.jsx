@@ -59,9 +59,9 @@ export default function Dashboard() {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'income':
-        return <IncomeForm categories={categories.income || []} onSuccess={triggerRefresh} transactions={transactions.filter(t => t.type === 'income')} />
+        return <IncomeForm categories={categories.income || []} onSuccess={triggerRefresh} transactions={transactions.filter(t => t.type === 'income' && t.user_id === user.id)} />
       case 'expense':
-        return <ExpenseForm categories={categories.expense || []} onSuccess={triggerRefresh} transactions={transactions.filter(t => t.type === 'expense')} />
+        return <ExpenseForm categories={categories.expense || []} onSuccess={triggerRefresh} transactions={transactions.filter(t => t.type === 'expense' && t.user_id === user.id)} />
       case 'deposit':
         return <DepositForm categories={categories.deposit || []} onSuccess={triggerRefresh} transactions={transactions.filter(t => t.type === 'deposit')} />
       case 'investment':
