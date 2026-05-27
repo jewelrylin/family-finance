@@ -48,3 +48,4 @@ cd .. && npm run dev
 2. Build Command: `cd client && npm install && npm run build`
 3. Publish directory: `client/dist`
 4. 設定 redirect 規則（`netlify.toml` 已包含）
+# RLS 已在 Supabase 禁用 - 重新部署觸發
