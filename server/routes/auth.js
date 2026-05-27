@@ -1,41 +1,44 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { db, generateInviteCode } = require('../db');
-const { authenticate, adminOnly, JWT_SECRET } = require('../middleware/auth');
+const supabase = require('../db');
 
 const router = express.Router();
+const JWT_SECRET = process.env.JWT_SECRET || 'family-finance-secret-key-2026';
 
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, displayName, inviteCode } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email 和密碼為必填' });
+    const { email, password, name } = req.body;
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: '請填寫所有必填欄位' });
     }
 
-    const existing = await db.getUserByEmail(email);
+    const { data: existing } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
+
     if (existing) {
-      return res.status(409).json({ error: '此 Email 已被註冊' });
+      return res.status(400).json({ error: '此信箱已被註冊' });
     }
 
-    const hash = bcrypt.hashSync(password, 10);
-    let familyId = null;
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    if (inviteCode) {
-      const family = await db.getFamilyByInvite(inviteCode);
-      if (!family) return res.status(400).json({ error: '邀請碼無效' });
-      familyId = family.id;
-    }
+    const { data: user, error } = await supabase
+      .from('users')
+      .insert({ email, password: hashedPassword, name })
+      .select('id, email, name, created_at')
+      .single();
 
-    const user = await db.createUser(email, hash, displayName || email.split('@')[0], 'user', familyId);
-    const token = jwt.sign({ id: user.id, email, role: 'user', family_id: familyId, display_name: displayName || email.split('@')[0] }, JWT_SECRET, { expiresIn: '7d' });
+    if (error) throw error;
 
-    res.status(201).json({
-      token,
-      user: { id: user.id, email, display_name: displayName || email.split('@')[0], role: 'user', family_id: familyId }
-    });
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+
+    res.status(201).json({ user, token });
   } catch (err) {
-    res.status(500).json({ error: '伺服器錯誤' });
+    console.error('Register error:', err);
+    res.status(500).json({ error: '註冊失敗，請稍後再試' });
   }
 });
 
@@ -43,55 +46,47 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email 和密碼為必填' });
+      return res.status(400).json({ error: '請填寫信箱和密碼' });
     }
 
-    const user = await db.getUserByEmail(email);
-    if (!user) {
-      return res.status(401).json({ error: 'Email 或密碼錯誤' });
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (error || !user) {
+      return res.status(401).json({ error: '信箱或密碼錯誤' });
     }
 
-    const valid = bcrypt.compareSync(password, user.password_hash);
-    if (!valid) {
-      return res.status(401).json({ error: 'Email 或密碼錯誤' });
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(401).json({ error: '信箱或密碼錯誤' });
     }
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, family_id: user.family_id, display_name: user.display_name },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
 
-    res.json({
-      token,
-      user: { id: user.id, email: user.email, display_name: user.display_name, role: user.role, family_id: user.family_id }
-    });
+    const { password: _, ...userData } = user;
+    res.json({ user: userData, token });
   } catch (err) {
-    res.status(500).json({ error: '伺服器錯誤' });
+    console.error('Login error:', err);
+    res.status(500).json({ error: '登入失敗，請稍後再試' });
   }
 });
 
-router.get('/me', authenticate, async (req, res) => {
-  const user = await db.getUserById(req.user.id);
-  if (!user) return res.status(404).json({ error: '使用者不存在' });
-  res.json({ id: user.id, email: user.email, display_name: user.display_name, role: user.role, family_id: user.family_id });
-});
-
-router.get('/users', authenticate, adminOnly, async (req, res) => {
-  const users = await db.getAllUsers();
-  res.json(users);
-});
-
-router.put('/reset-password/:id', authenticate, adminOnly, async (req, res) => {
+router.get('/me', require('../middleware/auth'), async (req, res) => {
   try {
-    const { id } = req.params;
-    const { newPassword } = req.body;
-    if (!newPassword || newPassword.length < 4) {
-      return res.status(400).json({ error: '密碼至少需要4個字元' });
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, email, name, created_at')
+      .eq('id', req.user.id)
+      .single();
+
+    if (error || !user) {
+      return res.status(404).json({ error: '使用者不存在' });
     }
-    const hash = bcrypt.hashSync(newPassword, 10);
-    await db.updateUserPassword(hash, id);
-    res.json({ message: '密碼已重設' });
+
+    res.json({ user });
   } catch (err) {
     res.status(500).json({ error: '伺服器錯誤' });
   }

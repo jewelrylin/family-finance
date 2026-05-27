@@ -1,31 +1,67 @@
-import { useAuth } from './context/AuthContext'
-import LoginPage from './pages/LoginPage'
-import RegisterPage from './pages/RegisterPage'
-import DashboardPage from './pages/DashboardPage'
-import { useState } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import Dashboard from './pages/Dashboard';
+import IncomePage from './pages/IncomePage';
+import ExpensePage from './pages/ExpensePage';
+import InvestmentPage from './pages/InvestmentPage';
+import SavingsPage from './pages/SavingsPage';
+import FinancialAnalysis from './pages/FinancialAnalysis';
+import FamilyManagement from './pages/FamilyManagement';
+import Layout from './components/Layout';
 
-export default function App() {
-  const { user, loading } = useAuth()
-  const [authPage, setAuthPage] = useState('login')
-
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">載入中...</p>
-        </div>
+      <div className="auth-layout">
+        <div style={{ color: '#fff', fontSize: 18 }}>載入中...</div>
       </div>
-    )
+    );
   }
+  if (!user) return <Navigate to="/login" />;
+  return children;
+}
 
-  if (!user) {
-    return authPage === 'register' ? (
-      <RegisterPage onSwitch={() => setAuthPage('login')} />
-    ) : (
-      <LoginPage onSwitch={() => setAuthPage('register')} />
-    )
+function PublicRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="auth-layout">
+        <div style={{ color: '#fff', fontSize: 18 }}>載入中...</div>
+      </div>
+    );
   }
+  if (user) return <Navigate to="/" />;
+  return children;
+}
 
-  return <DashboardPage />
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
+      <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+      <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+        <Route index element={<Dashboard />} />
+        <Route path="income" element={<IncomePage />} />
+        <Route path="expenses" element={<ExpensePage />} />
+        <Route path="investments" element={<InvestmentPage />} />
+        <Route path="savings" element={<SavingsPage />} />
+        <Route path="analysis" element={<FinancialAnalysis />} />
+        <Route path="family" element={<FamilyManagement />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" />} />
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </BrowserRouter>
+  );
 }

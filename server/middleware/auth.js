@@ -1,26 +1,21 @@
 const jwt = require('jsonwebtoken');
+
 const JWT_SECRET = process.env.JWT_SECRET || 'family-finance-secret-key-2026';
 
-function authenticate(req, res, next) {
-  const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
-    return res.status(401).json({ error: '未提供認證令牌' });
+function authMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: '未提供驗證令牌' });
   }
+
+  const token = authHeader.split(' ')[1];
   try {
-    const token = header.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
     next();
-  } catch {
-    return res.status(401).json({ error: '認證令牌無效或已過期' });
+  } catch (err) {
+    return res.status(401).json({ error: '驗證令牌無效或已過期' });
   }
 }
 
-function adminOnly(req, res, next) {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ error: '僅限管理員操作' });
-  }
-  next();
-}
-
-module.exports = { authenticate, adminOnly, JWT_SECRET };
+module.exports = authMiddleware;

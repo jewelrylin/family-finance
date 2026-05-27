@@ -1,32 +1,16 @@
-const bcrypt = require('bcryptjs');
-const path = require('path');
-const fs = require('fs');
+const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
-const USE_SUPABASE = !!process.env.SUPABASE_URL;
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
 
-let db;
-if (USE_SUPABASE) {
-  db = require('./db-supabase');
-} else {
-  db = require('./db-sqlite');
+if (!supabaseUrl || !supabaseKey) {
+  console.error('Missing SUPABASE_URL or SUPABASE_KEY environment variables');
+  process.exit(1);
 }
 
-function generateInviteCode() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let code = '';
-  for (let i = 0; i < 8; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
-  return code;
-}
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: { persistSession: false }
+});
 
-async function seedAdmin() {
-  const admin = await db.getUserByEmail('admin');
-  if (!admin) {
-    const hash = bcrypt.hashSync('admin123', 10);
-    await db.createUser('admin', hash, '管理員', 'admin', null);
-    console.log('Default admin: admin / admin123');
-  }
-}
-
-seedAdmin();
-
-module.exports = { db, generateInviteCode };
+module.exports = supabase;

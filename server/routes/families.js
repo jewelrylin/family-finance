@@ -1,65 +1,159 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
-const { db, generateInviteCode } = require('../db');
-const { authenticate, JWT_SECRET } = require('../middleware/auth');
+const supabase = require('../db');
+const auth = require('../middleware/auth');
 
 const router = express.Router();
 
-router.post('/create', authenticate, async (req, res) => {
+router.get('/', auth, async (req, res) => {
+  try {
+    const { data: memberships, error } = await supabase
+      .from('family_members')
+      .select('family_id, role, families(id, name, created_at)')
+      .eq('user_id', req.user.id);
+
+    if (error) throw error;
+
+    const families = memberships.map(m => ({
+      id: m.families.id,
+      name: m.families.name,
+      role: m.role,
+      created_at: m.families.created_at
+    }));
+
+    res.json({ families });
+  } catch (err) {
+    console.error('Get families error:', err);
+    res.status(500).json({ error: '無法獲取家庭列表' });
+  }
+});
+
+router.post('/', auth, async (req, res) => {
   try {
     const { name } = req.body;
-    if (!name) return res.status(400).json({ error: '請輸入家庭名稱' });
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: '請輸入家庭名稱' });
+    }
 
-    const code = generateInviteCode();
-    const family = await db.createFamily(name, code);
-    await db.updateUserFamily(family.id, req.user.id);
+    const { data: family, error } = await supabase
+      .from('families')
+      .insert({ name: name.trim(), created_by: req.user.id })
+      .select()
+      .single();
 
-    const token = jwt.sign(
-      { id: req.user.id, email: req.user.email, role: req.user.role, display_name: req.user.display_name, family_id: family.id },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    if (error) throw error;
 
-    res.status(201).json({ family: { id: family.id, name, invite_code: code }, token });
+    await supabase
+      .from('family_members')
+      .insert({ family_id: family.id, user_id: req.user.id, role: 'admin' });
+
+    res.status(201).json({ family: { ...family, role: 'admin' } });
   } catch (err) {
-    res.status(500).json({ error: '伺服器錯誤' });
+    console.error('Create family error:', err);
+    res.status(500).json({ error: '建立家庭失敗' });
   }
 });
 
-router.post('/join', authenticate, async (req, res) => {
+router.post('/:id/join', auth, async (req, res) => {
   try {
-    const { inviteCode } = req.body;
-    if (!inviteCode) return res.status(400).json({ error: '請輸入邀請碼' });
+    const { id } = req.params;
 
-    const family = await db.getFamilyByInvite(inviteCode);
-    if (!family) return res.status(404).json({ error: '邀請碼無效' });
+    const { data: family } = await supabase
+      .from('families')
+      .select('id')
+      .eq('id', id)
+      .single();
 
-    await db.updateUserFamily(family.id, req.user.id);
+    if (!family) {
+      return res.status(404).json({ error: '家庭不存在' });
+    }
 
-    const token = jwt.sign(
-      { id: req.user.id, email: req.user.email, role: req.user.role, display_name: req.user.display_name, family_id: family.id },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const { data: existing } = await supabase
+      .from('family_members')
+      .select('id')
+      .eq('family_id', id)
+      .eq('user_id', req.user.id)
+      .single();
 
-    res.json({ family: { id: family.id, name: family.name, invite_code: family.invite_code }, token });
+    if (existing) {
+      return res.status(400).json({ error: '你已經是此家庭的成員' });
+    }
+
+    await supabase
+      .from('family_members')
+      .insert({ family_id: id, user_id: req.user.id, role: 'member' });
+
+    res.json({ message: '成功加入家庭' });
   } catch (err) {
-    res.status(500).json({ error: '伺服器錯誤' });
+    console.error('Join family error:', err);
+    res.status(500).json({ error: '加入家庭失敗' });
   }
 });
 
-router.get('/my', authenticate, async (req, res) => {
+router.get('/:id/members', auth, async (req, res) => {
   try {
-    const familyId = req.user.family_id;
-    if (!familyId) return res.status(404).json({ error: '尚未加入家庭' });
+    const { id } = req.params;
 
-    const family = await db.getFamilyById(familyId);
-    if (!family) return res.status(404).json({ error: '家庭不存在' });
+    const { data: membership } = await supabase
+      .from('family_members')
+      .select('role')
+      .eq('family_id', id)
+      .eq('user_id', req.user.id)
+      .single();
 
-    const members = await db.getUsersByFamily(familyId);
-    res.json({ id: family.id, name: family.name, invite_code: family.invite_code, members });
+    if (!membership) {
+      return res.status(403).json({ error: '你不是此家庭的成員' });
+    }
+
+    const { data: members, error } = await supabase
+      .from('family_members')
+      .select('id, role, joined_at, users:user_id(id, email, name)')
+      .eq('family_id', id);
+
+    if (error) throw error;
+
+    const result = members.map(m => ({
+      id: m.id,
+      role: m.role,
+      joined_at: m.joined_at,
+      user: m.users
+    }));
+
+    res.json({ members: result });
   } catch (err) {
-    res.status(500).json({ error: '伺服器錯誤' });
+    console.error('Get members error:', err);
+    res.status(500).json({ error: '無法獲取成員列表' });
+  }
+});
+
+router.delete('/:id/members/:userId', auth, async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+
+    const { data: membership } = await supabase
+      .from('family_members')
+      .select('role')
+      .eq('family_id', id)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (!membership || membership.role !== 'admin') {
+      return res.status(403).json({ error: '只有管理員可以移除成員' });
+    }
+
+    if (userId === req.user.id) {
+      return res.status(400).json({ error: '管理員不能移除自己，請先轉讓管理員權限' });
+    }
+
+    await supabase
+      .from('family_members')
+      .delete()
+      .eq('family_id', id)
+      .eq('user_id', userId);
+
+    res.json({ message: '成員已移除' });
+  } catch (err) {
+    console.error('Remove member error:', err);
+    res.status(500).json({ error: '移除成員失敗' });
   }
 });
 

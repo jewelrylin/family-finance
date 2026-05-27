@@ -1,145 +1,82 @@
-import { useState } from 'react'
-import { useAuth } from '../context/AuthContext'
-import { api } from '../api'
-import Card, { CardHeader, CardTitle, CardContent } from '../components/ui/Card'
-import Button from '../components/ui/Button'
-import Input from '../components/ui/Input'
-import Alert from '../components/ui/Alert'
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
-export default function RegisterPage({ onSwitch }) {
-  const { login } = useAuth()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [displayName, setDisplayName] = useState('')
-  const [inviteCode, setInviteCode] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+export default function RegisterPage() {
+  const { register } = useAuth();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleRegister = async (e) => {
-    e.preventDefault()
-    setError('')
-
-    if (password !== confirmPassword) {
-      setError('密碼不一致')
-      return
-    }
-
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
     if (password.length < 6) {
-      setError('密碼至少 6 個字符')
-      return
+      setError('密碼長度需至少 6 個字元');
+      return;
     }
-
-    setLoading(true)
-
+    setLoading(true);
     try {
-      const data = await api.auth.register({
-        email,
-        password,
-        displayName: displayName || email.split('@')[0],
-        inviteCode: inviteCode || undefined
-      })
-      login(data.token, data.user)
+      await register(email, password, name);
     } catch (err) {
-      setError(err.message || '註冊失敗')
+      setError(err.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-900 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>註冊帳號</CardTitle>
-          <p className="text-gray-600 text-sm mt-2">加入家庭財務管理系統</p>
-        </CardHeader>
-
-        <CardContent>
-          {error && <Alert variant="error" className="mb-4">{error}</Alert>}
-
-          <form onSubmit={handleRegister} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                required
-                disabled={loading}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">顯示名稱</label>
-              <Input
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="你的名字"
-                disabled={loading}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">密碼</label>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="至少 6 個字符"
-                required
-                disabled={loading}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">確認密碼</label>
-              <Input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="再次輸入密碼"
-                required
-                disabled={loading}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">邀請碼（可選）</label>
-              <Input
-                type="text"
-                value={inviteCode}
-                onChange={(e) => setInviteCode(e.target.value)}
-                placeholder="ABCD1234"
-                disabled={loading}
-              />
-            </div>
-
-            <Button
-              type="submit"
-              variant="primary"
-              className="w-full"
-              disabled={loading}
-            >
-              {loading ? '註冊中...' : '註冊'}
-            </Button>
-          </form>
-
-          <div className="mt-4 pt-4 border-t text-center">
-            <p className="text-sm text-gray-600">
-              已有帳號？
-              <button
-                onClick={() => onSwitch('login')}
-                className="text-blue-600 hover:underline ml-1"
-              >
-                登入
-              </button>
-            </p>
+    <div className="auth-layout">
+      <div className="auth-card">
+        <div className="auth-logo">
+          <h1>FamilyFin</h1>
+          <p>建立您的家庭財務帳戶</p>
+        </div>
+        {error && <div className="alert alert-error">{error}</div>}
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label className="form-label">姓名</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="請輸入您的姓名"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              required
+            />
           </div>
-        </CardContent>
-      </Card>
+          <div className="form-group">
+            <label className="form-label">電子信箱</label>
+            <input
+              type="email"
+              className="form-input"
+              placeholder="your@email.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">密碼</label>
+            <input
+              type="password"
+              className="form-input"
+              placeholder="至少 6 個字元"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+            {loading ? '註冊中...' : '註冊'}
+          </button>
+        </form>
+        <p style={{ textAlign: 'center', marginTop: 20, fontSize: 14, color: 'var(--color-text-secondary)' }}>
+          已經有帳號？<Link to="/login" style={{ color: 'var(--color-primary)', fontWeight: 600, textDecoration: 'none' }}>登入</Link>
+        </p>
+      </div>
     </div>
-  )
+  );
 }

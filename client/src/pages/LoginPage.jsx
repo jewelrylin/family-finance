@@ -1,170 +1,66 @@
-import { useState } from 'react'
-import { useAuth } from '../context/AuthContext'
-import { api } from '../api'
-import Card, { CardHeader, CardTitle, CardContent } from '../components/ui/Card'
-import Button from '../components/ui/Button'
-import Input from '../components/ui/Input'
-import Alert from '../components/ui/Alert'
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
-export default function LoginPage({ onSwitch }) {
-  const { login } = useAuth()
-  const [email, setEmail] = useState('admin')
-  const [password, setPassword] = useState('admin123')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [showAdmin, setShowAdmin] = useState(false)
-  const [users, setUsers] = useState([])
-  const [resetId, setResetId] = useState('')
-  const [newPassword, setNewPassword] = useState('')
+export default function LoginPage() {
+  const { login } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
     try {
-      const data = await api.auth.login({ email, password })
-      login(data.token, data.user)
+      await login(email, password);
     } catch (err) {
-      setError(err.message || 'Email 或密碼錯誤')
+      setError(err.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
-
-  const loadUsers = async () => {
-    try {
-      const data = await api.auth.getUsers()
-      setUsers(data)
-      setShowAdmin(true)
-    } catch (err) {
-      setError('無法加載用戶列表')
-    }
-  }
-
-  const resetPassword = async () => {
-    if (!resetId || !newPassword) {
-      setError('請填寫用戶 ID 和新密碼')
-      return
-    }
-
-    try {
-      await api.auth.resetPassword(parseInt(resetId), newPassword)
-      setError('')
-      setResetId('')
-      setNewPassword('')
-      alert('密碼已重設')
-      loadUsers()
-    } catch (err) {
-      setError('重設失敗: ' + err.message)
-    }
-  }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-900 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>家庭財務管理系統</CardTitle>
-          <p className="text-gray-600 text-sm mt-2">登入你的帳號</p>
-        </CardHeader>
-
-        <CardContent>
-          {error && <Alert variant="error" className="mb-4">{error}</Alert>}
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <Input
-                type="text"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin"
-                disabled={loading}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">密碼</label>
-              <Input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                disabled={loading}
-              />
-            </div>
-
-            <Button
-              type="submit"
-              variant="primary"
-              className="w-full"
-              disabled={loading}
-            >
-              {loading ? '登入中...' : '登入'}
-            </Button>
-          </form>
-
-          <div className="mt-4 pt-4 border-t">
-            <p className="text-sm text-gray-600 mb-3">
-              還沒有帳號？
-              <button
-                onClick={() => onSwitch('register')}
-                className="text-blue-600 hover:underline ml-1"
-              >
-                立即註冊
-              </button>
-            </p>
+    <div className="auth-layout">
+      <div className="auth-card">
+        <div className="auth-logo">
+          <h1>FamilyFin</h1>
+          <p>家庭財務管理系統</p>
+        </div>
+        {error && <div className="alert alert-error">{error}</div>}
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label className="form-label">電子信箱</label>
+            <input
+              type="email"
+              className="form-input"
+              placeholder="your@email.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+            />
           </div>
-
-          <div className="text-center">
-            <button
-              onClick={loadUsers}
-              className="text-xs text-gray-500 hover:text-gray-700"
-            >
-              管理員
-            </button>
+          <div className="form-group">
+            <label className="form-label">密碼</label>
+            <input
+              type="password"
+              className="form-input"
+              placeholder="請輸入密碼"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+            />
           </div>
-
-          {showAdmin && (
-            <div className="mt-4 pt-4 border-t space-y-3">
-              <h3 className="font-bold text-sm">用戶管理</h3>
-              <div className="max-h-40 overflow-y-auto text-xs">
-                {users.map((user) => (
-                  <div key={user.id} className="flex justify-between items-center py-1 px-2 bg-gray-50 rounded mb-1">
-                    <span>{user.email}</span>
-                    <button
-                      onClick={() => setResetId(user.id)}
-                      className="text-blue-600 hover:underline"
-                    >
-                      重設
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {resetId && (
-                <div className="space-y-2">
-                  <Input
-                    type="password"
-                    placeholder="新密碼"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="text-xs"
-                  />
-                  <Button
-                    onClick={resetPassword}
-                    variant="secondary"
-                    size="sm"
-                    className="w-full"
-                  >
-                    確認重設
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+            {loading ? '登入中...' : '登入'}
+          </button>
+        </form>
+        <p style={{ textAlign: 'center', marginTop: 20, fontSize: 14, color: 'var(--color-text-secondary)' }}>
+          還沒有帳號？<Link to="/register" style={{ color: 'var(--color-primary)', fontWeight: 600, textDecoration: 'none' }}>註冊</Link>
+        </p>
+      </div>
     </div>
-  )
+  );
 }

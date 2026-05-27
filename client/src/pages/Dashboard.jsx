@@ -1,197 +1,165 @@
-import { useState, useEffect } from 'react'
-import { useAuth } from '../context/AuthContext'
-import { api } from '../api'
-import FamilyManager from '../components/FamilyManager'
-import VoiceInput from '../components/VoiceInput'
-import IncomeForm from '../components/IncomeForm'
-import ExpenseForm from '../components/ExpenseForm'
-import InvestmentForm from '../components/InvestmentForm'
-import FamilyInvestmentSummary from '../components/FamilyInvestmentSummary'
-import FinancialAnalysis from '../components/FinancialAnalysis'
-import DepositForm from '../components/DepositForm'
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { api } from '../api';
+import TransactionForm from '../components/TransactionForm';
 
-const TABS = [
-  { key: 'income', label: '收入', icon: '📈' },
-  { key: 'expense', label: '支出', icon: '📉' },
-  { key: 'deposit', label: '銀行存款', icon: '🏦' },
-  { key: 'investment', label: '個人投資', icon: '💹' },
-  { key: 'family-investment', label: '家庭總投資', icon: '🏛️' },
-  { key: 'analysis', label: '財務分析', icon: '📊' },
-]
+const typeIcons = {
+  income: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  expense: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z',
+  investment: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6',
+  savings: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'
+};
+
+const typeColors = {
+  income: 'income',
+  expense: 'expense',
+  investment: 'investment',
+  savings: 'savings'
+};
+
+const typeLabels = {
+  income: '收入',
+  expense: '支出',
+  investment: '投資',
+  savings: '存款'
+};
 
 export default function Dashboard() {
-  const { user, logout, updateUser } = useAuth()
-  const [activeTab, setActiveTab] = useState('income')
-  const [transactions, setTransactions] = useState([])
-  const [categories, setCategories] = useState({})
-  const [refreshKey, setRefreshKey] = useState(0)
+  const { user } = useAuth();
+  const [families, setFamilies] = useState([]);
+  const [selectedFamily, setSelectedFamily] = useState('');
+  const [transactions, setTransactions] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [summary, setSummary] = useState({ income: 0, expense: 0, investment: 0, savings: 0 });
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    api.transactions.categories().then(setCategories).catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    if (user?.family_id) {
-      api.transactions.list().then(setTransactions).catch(() => {})
-    } else {
-      setTransactions([])
+  const loadFamilies = useCallback(async () => {
+    try {
+      const data = await api.getFamilies();
+      setFamilies(data.families);
+      if (data.families.length > 0 && !selectedFamily) {
+        setSelectedFamily(data.families[0].id);
+      }
+    } catch (err) {
+      console.error('Load families error:', err);
     }
-  }, [user?.family_id, refreshKey])
+  }, [selectedFamily]);
 
-  const triggerRefresh = () => setRefreshKey(k => k + 1)
-
-  const handleCreateFamily = async (name) => {
-    const data = await api.families.create(name)
-    updateUser({ family_id: data.family.id })
-    localStorage.setItem('token', data.token)
-    triggerRefresh()
-    return data.family
-  }
-
-  const handleJoinFamily = async (code) => {
-    const data = await api.families.join(code)
-    updateUser({ family_id: data.family.id })
-    localStorage.setItem('token', data.token)
-    triggerRefresh()
-    return data.family
-  }
-
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'income':
-        return <IncomeForm categories={categories.income || []} onSuccess={triggerRefresh} transactions={transactions.filter(t => t.type === 'income' && t.user_id === user.id)} />
-      case 'expense':
-        return <ExpenseForm categories={categories.expense || []} onSuccess={triggerRefresh} transactions={transactions.filter(t => t.type === 'expense' && t.user_id === user.id)} />
-      case 'deposit':
-        return <DepositForm categories={categories.deposit || []} onSuccess={triggerRefresh} transactions={transactions.filter(t => t.type === 'deposit')} />
-      case 'investment':
-        return <InvestmentForm categories={categories.investment || []} onSuccess={triggerRefresh} />
-      case 'family-investment':
-        return <FamilyInvestmentSummary />
-      case 'analysis':
-        return <FinancialAnalysis transactions={transactions} />
-      default:
-        return null
+  const loadTransactions = useCallback(async () => {
+    if (!selectedFamily) return;
+    setLoading(true);
+    try {
+      const data = await api.getTransactions({ family_id: selectedFamily });
+      setTransactions(data.transactions || []);
+      const s = { income: 0, expense: 0, investment: 0, savings: 0 };
+      (data.transactions || []).forEach(t => {
+        s[t.type] = (s[t.type] || 0) + parseFloat(t.amount);
+      });
+      setSummary(s);
+    } catch (err) {
+      console.error('Load transactions error:', err);
+    } finally {
+      setLoading(false);
     }
-  }
+  }, [selectedFamily]);
+
+  useEffect(() => { loadFamilies(); }, [loadFamilies]);
+  useEffect(() => { loadTransactions(); }, [loadTransactions]);
+
+  const handleCreate = async (data) => {
+    await api.createTransaction(data);
+    loadTransactions();
+  };
+
+  const recentTransactions = transactions
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0, 10);
 
   return (
-    <div className="dashboard">
-      <header className="dashboard-header">
-        <div className="container flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span style={{ fontSize: 28 }}>💰</span>
-            <div>
-              <h1 style={{ fontSize: 20, fontWeight: 800, color: 'white' }}>家庭財務管理</h1>
-              {user?.family_id && (
-                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>
-                  {user.display_name || user.email} 的家庭
-                </span>
-              )}
+    <div>
+      <div className="page-header">
+        <h1>歡迎回來，{user?.name}</h1>
+        <p>以下是您的財務總覽</p>
+      </div>
+
+      <div className="family-selector">
+        <span style={{ fontSize: 14, color: 'var(--color-text-secondary)', fontWeight: 500 }}>目前家庭：</span>
+        <select value={selectedFamily} onChange={e => setSelectedFamily(e.target.value)}>
+          {families.map(f => (
+            <option key={f.id} value={f.id}>{f.name}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="stats-grid">
+        {['income', 'expense', 'investment', 'savings'].map(type => (
+          <div key={type} className="stat-card">
+            <div className="stat-card-header">
+              <div className={`stat-card-icon ${typeColors[type]}`}>
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d={typeIcons[type]} />
+                </svg>
+              </div>
+            </div>
+            <div className="stat-card-label">{typeLabels[type]}總額</div>
+            <div className="stat-card-value" style={{ color: type === 'expense' ? 'var(--color-danger)' : 'var(--color-text)' }}>
+              NT$ {summary[type].toLocaleString()}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <FamilyManager
-              familyId={user?.family_id}
-              onCreate={handleCreateFamily}
-              onJoin={handleJoinFamily}
-            />
-            <button className="btn btn-outline btn-sm" style={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }} onClick={logout}>
-              登出
-            </button>
-          </div>
-        </div>
-      </header>
+        ))}
+      </div>
 
-      {!user?.family_id && (
-        <div className="container mt-3">
-          <div className="card text-center" style={{ padding: 40 }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🏠</div>
-            <h2 style={{ marginBottom: 8 }}>歡迎來到家庭財務管理</h2>
-            <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>
-              您還沒有加入任何家庭。請建立一個新家庭或輸入邀請碼加入現有家庭。
-            </p>
-            <FamilyManager
-              familyId={user?.family_id}
-              onCreate={handleCreateFamily}
-              onJoin={handleJoinFamily}
-              inline
-            />
-          </div>
+      <div className="card">
+        <div className="card-header">
+          <h3>近期交易記錄</h3>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowForm(true)}>
+            新增交易
+          </button>
         </div>
-      )}
-
-      {user?.family_id && (
-        <>
-          <div className="container mt-3">
-            <div className="tabs">
-              {TABS.map(tab => (
-                <button
-                  key={tab.key}
-                  className={`tab ${activeTab === tab.key ? 'active' : ''}`}
-                  onClick={() => setActiveTab(tab.key)}
-                >
-                  <span>{tab.icon}</span>
-                  <span>{tab.label}</span>
-                </button>
-              ))}
+        <div className="card-body no-padding">
+          {recentTransactions.length === 0 ? (
+            <div className="empty-state">
+              <h3>尚無交易記錄</h3>
+              <p>點擊上方按鈕新增您的第一筆交易</p>
             </div>
-          </div>
+          ) : (
+            <div className="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>日期</th>
+                    <th>類型</th>
+                    <th>類別</th>
+                    <th>金額</th>
+                    <th>備註</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentTransactions.map(t => (
+                    <tr key={t.id}>
+                      <td>{new Date(t.date).toLocaleDateString('zh-TW')}</td>
+                      <td><span className={`badge badge-${t.type}`}>{typeLabels[t.type]}</span></td>
+                      <td>{t.category || '-'}</td>
+                      <td className={t.type === 'expense' ? 'text-negative' : 'text-positive'}>
+                        {t.type === 'expense' ? '-' : '+'}NT$ {parseFloat(t.amount).toLocaleString()}
+                      </td>
+                      <td>{t.description || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
 
-          <div className="container mt-2 mb-3">
-            <VoiceInput
-              categories={categories}
-              onSuccess={triggerRefresh}
-            />
-          </div>
-
-          <div className="container mb-3">
-            {renderTabContent()}
-          </div>
-        </>
+      {showForm && (
+        <TransactionForm
+          familyId={selectedFamily}
+          onSubmit={handleCreate}
+          onClose={() => setShowForm(false)}
+        />
       )}
-
-      <style>{dashboardStyles}</style>
     </div>
-  )
+  );
 }
-
-const dashboardStyles = `
-  .dashboard-header {
-    background: linear-gradient(135deg, #002171 0%, #0d47a1 50%, #1565c0 100%);
-    padding: 16px 0;
-    box-shadow: 0 4px 20px rgba(0,33,113,0.2);
-  }
-  .tabs {
-    display: flex;
-    gap: 4px;
-    background: white;
-    border-radius: 12px;
-    padding: 4px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    overflow-x: auto;
-  }
-  .tab {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 12px 16px;
-    border: none;
-    background: transparent;
-    border-radius: 10px;
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
-  }
-  .tab:hover { background: #f0f2f5; }
-  .tab.active {
-    background: linear-gradient(135deg, var(--primary), var(--primary-light));
-    color: white;
-    box-shadow: 0 4px 12px rgba(13,71,161,0.3);
-  }
-`
