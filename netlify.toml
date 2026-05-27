@@ -4,7 +4,7 @@
 
 [build.environment]
   CI = "false"
-  VITE_API_URL = "https://family-finance-api.onrender.com"
+  VITE_API_URL = "https://family-finance-4hv9.onrender.com"
 
 [[redirects]]
   from = "/*"
