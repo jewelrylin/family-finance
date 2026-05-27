@@ -2,27 +2,36 @@ const express = require('express');
 const serverless = require('serverless-http');
 const cors = require('cors');
 
-const authRoutes = require('../../routes/auth');
-const transactionRoutes = require('../../routes/transactions');
-const familyRoutes = require('../../routes/families');
-const priceRoutes = require('../../routes/prices');
+let app;
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+function initializeApp() {
+  if (!app) {
+    app = express();
+    app.use(cors());
+    app.use(express.json());
 
-app.use('/auth', authRoutes);
-app.use('/transactions', transactionRoutes);
-app.use('/families', familyRoutes);
-app.use('/prices', priceRoutes);
+    try {
+      const authRoutes = require('../../routes/auth');
+      const transactionRoutes = require('../../routes/transactions');
+      const familyRoutes = require('../../routes/families');
+      const priceRoutes = require('../../routes/prices');
 
-app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(500).json({ error: '伺服器錯誤' });
-});
+      app.use('/auth', authRoutes);
+      app.use('/transactions', transactionRoutes);
+      app.use('/families', familyRoutes);
+      app.use('/prices', priceRoutes);
+    } catch (err) {
+      console.error('Failed to load routes:', err);
+    }
 
-const handler = serverless(app);
+    app.use((err, req, res, next) => {
+      console.error('Error:', err);
+      res.status(500).json({ error: '伺服器錯誤' });
+    });
+  }
+  return app;
+}
 
-exports.handler = async (event, context) => {
-  return handler(event, context);
-};
+const handler = serverless(initializeApp());
+
+exports.handler = handler;
