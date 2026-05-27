@@ -1,7 +1,12 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-require('dotenv').config();
+
+try {
+  require('dotenv').config({ path: path.join(__dirname, '.env') });
+} catch (e) {
+  // dotenv not available, use system env vars
+}
 
 const authRoutes = require('./routes/auth');
 const familyRoutes = require('./routes/families');
@@ -31,6 +36,13 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
+app.use((err, req, res, _next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ error: '伺服器錯誤' });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Supabase: ${process.env.SUPABASE_URL ? 'configured' : 'NOT SET'}`);
+  console.log(`JWT_SECRET: ${process.env.JWT_SECRET ? 'configured' : 'NOT SET'}`);
 });
