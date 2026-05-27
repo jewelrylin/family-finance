@@ -14,12 +14,20 @@ const defaultCategories = {
   savings: ['活期存款', '定期存款', '緊急預備金', '退休儲蓄', '其他存款']
 };
 
+const freqOptions = [
+  { value: 'weekly', label: '每週' },
+  { value: 'monthly', label: '每月' },
+  { value: 'yearly', label: '每年' }
+];
+
 export default function TransactionForm({ onSubmit, onClose, initialData, familyId }) {
   const [type, setType] = useState(initialData?.type || 'expense');
   const [amount, setAmount] = useState(initialData?.amount || '');
   const [category, setCategory] = useState(initialData?.category || '');
   const [description, setDescription] = useState(initialData?.description || '');
   const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
+  const [recurring, setRecurring] = useState(initialData?.recurring || false);
+  const [recurringFreq, setRecurringFreq] = useState(initialData?.recurring_freq || 'monthly');
   const [customCategory, setCustomCategory] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -51,7 +59,9 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
         amount: parseFloat(amount),
         category: finalCategory,
         description,
-        date
+        date,
+        recurring,
+        recurring_freq: recurring ? recurringFreq : ''
       });
       onClose();
     } catch (err) {
@@ -158,6 +168,34 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
                 onChange={e => setDescription(e.target.value)}
               />
             </div>
+
+            {(type === 'income' || type === 'expense') && (
+              <div className="form-group">
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+                  <input
+                    type="checkbox"
+                    checked={recurring}
+                    onChange={e => setRecurring(e.target.checked)}
+                    style={{ width: 18, height: 18, cursor: 'pointer' }}
+                  />
+                  <span style={{ fontWeight: 500, fontSize: 14 }}>設為固定{type === 'income' ? '收入' : '支出'}</span>
+                </label>
+                {recurring && (
+                  <div style={{ marginTop: 8, marginLeft: 26 }}>
+                    <select
+                      className="form-select"
+                      value={recurringFreq}
+                      onChange={e => setRecurringFreq(e.target.value)}
+                      style={{ fontSize: 14 }}
+                    >
+                      {freqOptions.map(o => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <div className="modal-footer">
             <button type="button" className="btn btn-secondary" onClick={onClose}>取消</button>

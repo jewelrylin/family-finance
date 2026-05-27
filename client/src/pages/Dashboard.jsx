@@ -112,6 +112,7 @@ export default function Dashboard() {
                     <th>類型</th>
                     <th>類別</th>
                     <th>金額</th>
+                    <th>固定</th>
                     <th>備註</th>
                   </tr>
                 </thead>
@@ -123,6 +124,13 @@ export default function Dashboard() {
                       <td>{t.category || '-'}</td>
                       <td className={t.type === 'expense' ? 'text-negative' : 'text-positive'}>
                         {t.type === 'expense' ? '-' : '+'}NT$ {parseFloat(t.amount).toLocaleString()}
+                      </td>
+                      <td>
+                        {t.recurring ? (
+                          <span style={{ fontSize: 13, color: 'var(--color-primary)', fontWeight: 500 }}>
+                            🔄 {t.recurring_freq === 'weekly' ? '每週' : t.recurring_freq === 'yearly' ? '每年' : '每月'}
+                          </span>
+                        ) : <span style={{ color: 'var(--color-text-muted)' }}>-</span>}
                       </td>
                       <td>{t.description || '-'}</td>
                     </tr>

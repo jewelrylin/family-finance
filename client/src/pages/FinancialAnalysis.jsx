@@ -154,6 +154,45 @@ export default function FinancialAnalysis() {
         </div>
       </div>
 
+      {analysis.categoryBreakdown && (
+        <div className="card" style={{ marginTop: 24 }}>
+          <div className="card-header"><h3>家庭分類明細</h3></div>
+          <div className="card-body">
+            <div className="grid-2">
+              {['income', 'expense', 'investment', 'savings'].map(type => {
+                const items = analysis.categoryBreakdown[type] || [];
+                const typeTotal = items.reduce((s, i) => s + i.value, 0);
+                const labels = { income: '收入', expense: '支出', investment: '投資', savings: '存款' };
+                if (items.length === 0) return null;
+                return (
+                  <div key={type}>
+                    <h4 style={{ marginBottom: 12, color: COLORS[type], fontSize: 15 }}>{labels[type]}分類</h4>
+                    <div className="table-container">
+                      <table>
+                        <thead>
+                          <tr><th>類別</th><th>金額</th><th>佔比</th></tr>
+                        </thead>
+                        <tbody>
+                          {items.map(item => (
+                            <tr key={item.name}>
+                              <td>{item.name}</td>
+                              <td style={{ fontWeight: 600 }}>NT$ {item.value.toLocaleString()}</td>
+                              <td style={{ color: 'var(--color-text-secondary)' }}>
+                                {typeTotal > 0 ? (item.value / typeTotal * 100).toFixed(1) : 0}%
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="card" style={{ marginTop: 24 }}>
         <div className="card-header"><h3>我的財務摘要</h3></div>
         <div className="card-body">

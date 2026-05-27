@@ -46,7 +46,7 @@ router.get('/', auth, async (req, res) => {
 
 router.post('/', auth, async (req, res) => {
   try {
-    const { family_id, type, amount, category, description, date } = req.body;
+    const { family_id, type, amount, category, description, date, recurring, recurring_freq } = req.body;
     const dbType = normalizeType(type);
 
     if (!family_id || !type || !amount) {
@@ -78,7 +78,9 @@ router.post('/', auth, async (req, res) => {
         amount: parseFloat(amount),
         category: category || '',
         note: description || '',
-        date: date || new Date().toISOString().split('T')[0]
+        date: date || new Date().toISOString().split('T')[0],
+        recurring: !!recurring,
+        recurring_freq: recurring ? (recurring_freq || 'monthly') : ''
       })
       .select()
       .single();
@@ -106,7 +108,7 @@ router.post('/', auth, async (req, res) => {
 router.put('/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { amount, category, description, date, type } = req.body;
+    const { amount, category, description, date, type, recurring, recurring_freq } = req.body;
 
     const supabase = getClient();
 
@@ -127,6 +129,10 @@ router.put('/:id', auth, async (req, res) => {
     if (description !== undefined) updates.note = description;
     if (date !== undefined) updates.date = date;
     if (type !== undefined) updates.type = normalizeType(type);
+    if (recurring !== undefined) {
+      updates.recurring = !!recurring;
+      updates.recurring_freq = recurring ? (recurring_freq || 'monthly') : '';
+    }
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: '沒有要更新的欄位' });

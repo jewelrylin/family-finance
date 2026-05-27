@@ -93,6 +93,7 @@ export default function TransactionPage({ type, description }) {
                     <th>類別</th>
                     <th>金額</th>
                     <th>備註</th>
+                    <th>固定</th>
                     <th>操作</th>
                   </tr>
                 </thead>
@@ -103,6 +104,13 @@ export default function TransactionPage({ type, description }) {
                       <td><span className={`badge badge-${t.type}`}>{t.category || '未分類'}</span></td>
                       <td style={{ fontWeight: 600 }}>NT$ {parseFloat(t.amount).toLocaleString()}</td>
                       <td style={{ color: 'var(--color-text-secondary)' }}>{t.description || '-'}</td>
+                      <td>
+                        {t.recurring ? (
+                          <span style={{ fontSize: 13, color: 'var(--color-primary)', fontWeight: 500 }}>
+                            🔄 {t.recurring_freq === 'weekly' ? '每週' : t.recurring_freq === 'yearly' ? '每年' : '每月'}
+                          </span>
+                        ) : <span style={{ color: 'var(--color-text-muted)' }}>-</span>}
+                      </td>
                       <td>
                         <div style={{ display: 'flex', gap: 8 }}>
                           <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(t); setShowForm(true); }}>編輯</button>
