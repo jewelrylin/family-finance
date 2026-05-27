@@ -1,13 +1,35 @@
-export default function Alert({ className = '', variant = 'info', children }) {
+export default function Alert({ variant = 'info', children, style = {} }) {
   const variants = {
-    success: 'bg-green-50 border-l-4 border-green-500 text-green-700',
-    error: 'bg-red-50 border-l-4 border-red-500 text-red-700',
-    info: 'bg-blue-50 border-l-4 border-blue-500 text-blue-700',
-    warning: 'bg-yellow-50 border-l-4 border-yellow-500 text-yellow-700'
+    success: {
+      backgroundColor: '#f0fdf4',
+      borderLeftColor: '#22c55e',
+      color: '#15803d'
+    },
+    error: {
+      backgroundColor: '#fef2f2',
+      borderLeftColor: '#ef4444',
+      color: '#991b1b'
+    },
+    info: {
+      backgroundColor: '#f0f9ff',
+      borderLeftColor: '#2563eb',
+      color: '#1e40af'
+    },
+    warning: {
+      backgroundColor: '#fffbeb',
+      borderLeftColor: '#f59e0b',
+      color: '#92400e'
+    }
   }
 
   return (
-    <div className={`p-4 rounded ${variants[variant]} ${className}`}>
+    <div style={{
+      padding: '12px 16px',
+      borderRadius: '6px',
+      borderLeft: '4px solid',
+      ...variants[variant],
+      ...style
+    }}>
       {children}
     </div>
   )
