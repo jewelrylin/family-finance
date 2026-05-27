@@ -33,11 +33,11 @@ export const api = {
   getMe: () => request('/auth/me'),
 
   // Families
-  getFamilies: () => request('/families'),
+  getMyFamily: () => request('/families/mine'),
   createFamily: (body) => request('/families', { method: 'POST', body: JSON.stringify(body) }),
-  joinFamily: (id) => request(`/families/${id}/join`, { method: 'POST' }),
-  getMembers: (id) => request(`/families/${id}/members`),
-  removeMember: (familyId, userId) => request(`/families/${familyId}/members/${userId}`, { method: 'DELETE' }),
+  joinFamily: (inviteCode) => request('/families/join', { method: 'POST', body: JSON.stringify({ inviteCode }) }),
+  getMembers: () => request('/families/members'),
+  removeMember: (userId) => request(`/families/members/${userId}`, { method: 'DELETE' }),
 
   // Transactions
   getTransactions: (params = {}) => {
@@ -49,5 +49,5 @@ export const api = {
   deleteTransaction: (id) => request(`/transactions/${id}`, { method: 'DELETE' }),
 
   // Analysis
-  getAnalysis: (familyId) => request(`/analysis/family/${familyId}`)
+  getAnalysis: () => request('/analysis/family')
 };

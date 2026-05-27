@@ -10,68 +10,47 @@ const typeIcons = {
   savings: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'
 };
 
-const typeColors = {
-  income: 'income',
-  expense: 'expense',
-  investment: 'investment',
-  savings: 'savings'
-};
-
-const typeLabels = {
-  income: '收入',
-  expense: '支出',
-  investment: '投資',
-  savings: '存款'
-};
+const typeColors = { income: 'income', expense: 'expense', investment: 'investment', savings: 'savings' };
+const typeLabels = { income: '收入', expense: '支出', investment: '投資', savings: '存款' };
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [families, setFamilies] = useState([]);
-  const [selectedFamily, setSelectedFamily] = useState('');
+  const [family, setFamily] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [summary, setSummary] = useState({ income: 0, expense: 0, investment: 0, savings: 0 });
   const [loading, setLoading] = useState(true);
 
-  const loadFamilies = useCallback(async () => {
-    try {
-      const data = await api.getFamilies();
-      setFamilies(data.families);
-      if (data.families.length > 0 && !selectedFamily) {
-        setSelectedFamily(data.families[0].id);
-      }
-    } catch (err) {
-      console.error('Load families error:', err);
-    }
-  }, [selectedFamily]);
-
-  const loadTransactions = useCallback(async () => {
-    if (!selectedFamily) return;
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.getTransactions({ family_id: selectedFamily });
-      setTransactions(data.transactions || []);
+      const [familyData, txData] = await Promise.all([
+        api.getMyFamily(),
+        api.getTransactions()
+      ]);
+      setFamily(familyData.family);
+      setTransactions(txData.transactions || []);
       const s = { income: 0, expense: 0, investment: 0, savings: 0 };
-      (data.transactions || []).forEach(t => {
+      (txData.transactions || []).forEach(t => {
         s[t.type] = (s[t.type] || 0) + parseFloat(t.amount);
       });
       setSummary(s);
     } catch (err) {
-      console.error('Load transactions error:', err);
+      console.error('Load data error:', err);
     } finally {
       setLoading(false);
     }
-  }, [selectedFamily]);
+  }, []);
 
-  useEffect(() => { loadFamilies(); }, [loadFamilies]);
-  useEffect(() => { loadTransactions(); }, [loadTransactions]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const handleCreate = async (data) => {
-    await api.createTransaction(data);
-    loadTransactions();
+    if (!family) return;
+    await api.createTransaction({ ...data, family_id: family.id });
+    loadData();
   };
 
-  const recentTransactions = transactions
+  const recentTransactions = [...transactions]
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     .slice(0, 10);
 
@@ -79,17 +58,14 @@ export default function Dashboard() {
     <div>
       <div className="page-header">
         <h1>歡迎回來，{user?.name}</h1>
-        <p>以下是您的財務總覽</p>
+        <p>以下是您的財務總覽{family ? ` — ${family.name}` : ''}</p>
       </div>
 
-      <div className="family-selector">
-        <span style={{ fontSize: 14, color: 'var(--color-text-secondary)', fontWeight: 500 }}>目前家庭：</span>
-        <select value={selectedFamily} onChange={e => setSelectedFamily(e.target.value)}>
-          {families.map(f => (
-            <option key={f.id} value={f.id}>{f.name}</option>
-          ))}
-        </select>
-      </div>
+      {!family && (
+        <div className="alert" style={{ background: 'var(--color-primary-light)', color: '#1e40af', border: '1px solid #bfdbfe' }}>
+          您尚未加入任何家庭，請先到 <a href="/family" style={{ fontWeight: 600, color: 'var(--color-primary)' }}>家庭管理</a> 建立或加入家庭
+        </div>
+      )}
 
       <div className="stats-grid">
         {['income', 'expense', 'investment', 'savings'].map(type => (
@@ -112,15 +88,20 @@ export default function Dashboard() {
       <div className="card">
         <div className="card-header">
           <h3>近期交易記錄</h3>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowForm(true)}>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowForm(true)} disabled={!family}>
             新增交易
           </button>
         </div>
         <div className="card-body no-padding">
-          {recentTransactions.length === 0 ? (
+          {!family ? (
+            <div className="empty-state">
+              <h3>請先加入家庭</h3>
+              <p>加入家庭後即可開始記錄交易</p>
+            </div>
+          ) : recentTransactions.length === 0 ? (
             <div className="empty-state">
               <h3>尚無交易記錄</h3>
-              <p>點擊上方按鈕新增您的第一筆交易</p>
+              <p>點擊右上角按鈕新增您的第一筆交易</p>
             </div>
           ) : (
             <div className="table-container">
@@ -153,9 +134,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {showForm && (
+      {showForm && family && (
         <TransactionForm
-          familyId={selectedFamily}
+          familyId={family.id}
           onSubmit={handleCreate}
           onClose={() => setShowForm(false)}
         />

@@ -4,10 +4,19 @@ const auth = require('../middleware/auth');
 
 const router = express.Router();
 
+const VALID_TYPES = ['income', 'expense', 'investment', 'deposit'];
+const TYPE_MAP = { savings: 'deposit' };
+
+function normalizeType(type) {
+  return TYPE_MAP[type] || type;
+}
+
 router.get('/', auth, async (req, res) => {
   try {
-    const { family_id, type, start_date, end_date } = req.query;
-    let query = getClient()
+    const supabase = getClient();
+    const { family_id, type } = req.query;
+
+    let query = supabase
       .from('transactions')
       .select('*')
       .eq('user_id', req.user.id)
@@ -15,14 +24,20 @@ router.get('/', auth, async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (family_id) query = query.eq('family_id', family_id);
-    if (type) query = query.eq('type', type);
-    if (start_date) query = query.gte('date', start_date);
-    if (end_date) query = query.lte('date', end_date);
+    if (type) query = query.eq('type', normalizeType(type));
 
     const { data, error } = await query;
     if (error) throw error;
 
-    res.json({ transactions: data });
+    // 把 deposit 映射回 savings 給前端
+    const transactions = (data || []).map(t => ({
+      ...t,
+      type: t.type === 'deposit' ? 'savings' : t.type,
+      description: t.note || '',
+      note: undefined
+    }));
+
+    res.json({ transactions });
   } catch (err) {
     console.error('Get transactions error:', err);
     res.status(500).json({ error: '無法獲取交易記錄' });
@@ -32,43 +47,56 @@ router.get('/', auth, async (req, res) => {
 router.post('/', auth, async (req, res) => {
   try {
     const { family_id, type, amount, category, description, date } = req.body;
+    const dbType = normalizeType(type);
 
     if (!family_id || !type || !amount) {
       return res.status(400).json({ error: '請填寫必填欄位' });
     }
 
-    if (!['income', 'expense', 'investment', 'savings'].includes(type)) {
+    if (!VALID_TYPES.includes(dbType)) {
       return res.status(400).json({ error: '無效的交易類型' });
     }
 
-    const { data: membership } = await getClient()
-      .from('family_members')
-      .select('id')
-      .eq('family_id', family_id)
-      .eq('user_id', req.user.id)
-      .single();
+    const supabase = getClient();
 
-    if (!membership) {
+    const { data: user } = await supabase
+      .from('users')
+      .select('family_id')
+      .eq('id', req.user.id)
+      .maybeSingle();
+
+    if (!user || user.family_id !== parseInt(family_id)) {
       return res.status(403).json({ error: '你不是此家庭的成員' });
     }
 
-    const { data: transaction, error } = await getClient()
+    const { data: transaction, error } = await supabase
       .from('transactions')
       .insert({
         user_id: req.user.id,
-        family_id,
-        type,
+        family_id: parseInt(family_id),
+        type: dbType,
         amount: parseFloat(amount),
         category: category || '',
-        description: description || '',
+        note: description || '',
         date: date || new Date().toISOString().split('T')[0]
       })
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (error.message.includes('row-level security')) {
+        return res.status(500).json({ error: '資料庫權限不足，請在 Supabase 關閉 transactions 表的 RLS' });
+      }
+      throw error;
+    }
 
-    res.status(201).json({ transaction });
+    res.status(201).json({
+      transaction: {
+        ...transaction,
+        type: transaction.type === 'deposit' ? 'savings' : transaction.type,
+        description: transaction.note || ''
+      }
+    });
   } catch (err) {
     console.error('Create transaction error:', err);
     res.status(500).json({ error: '新增交易失敗' });
@@ -80,12 +108,14 @@ router.put('/:id', auth, async (req, res) => {
     const { id } = req.params;
     const { amount, category, description, date, type } = req.body;
 
-    const { data: transaction } = await getClient()
+    const supabase = getClient();
+
+    const { data: transaction } = await supabase
       .from('transactions')
       .select('*')
       .eq('id', id)
       .eq('user_id', req.user.id)
-      .single();
+      .maybeSingle();
 
     if (!transaction) {
       return res.status(404).json({ error: '交易記錄不存在' });
@@ -94,11 +124,15 @@ router.put('/:id', auth, async (req, res) => {
     const updates = {};
     if (amount !== undefined) updates.amount = parseFloat(amount);
     if (category !== undefined) updates.category = category;
-    if (description !== undefined) updates.description = description;
+    if (description !== undefined) updates.note = description;
     if (date !== undefined) updates.date = date;
-    if (type !== undefined) updates.type = type;
+    if (type !== undefined) updates.type = normalizeType(type);
 
-    const { data: updated, error } = await getClient()
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: '沒有要更新的欄位' });
+    }
+
+    const { data: updated, error } = await supabase
       .from('transactions')
       .update(updates)
       .eq('id', id)
@@ -108,7 +142,13 @@ router.put('/:id', auth, async (req, res) => {
 
     if (error) throw error;
 
-    res.json({ transaction: updated });
+    res.json({
+      transaction: {
+        ...updated,
+        type: updated.type === 'deposit' ? 'savings' : updated.type,
+        description: updated.note || ''
+      }
+    });
   } catch (err) {
     console.error('Update transaction error:', err);
     res.status(500).json({ error: '更新交易失敗' });
@@ -119,18 +159,20 @@ router.delete('/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { data: transaction } = await getClient()
+    const supabase = getClient();
+
+    const { data: transaction } = await supabase
       .from('transactions')
       .select('id')
       .eq('id', id)
       .eq('user_id', req.user.id)
-      .single();
+      .maybeSingle();
 
     if (!transaction) {
       return res.status(404).json({ error: '交易記錄不存在' });
     }
 
-    await getClient()
+    await supabase
       .from('transactions')
       .delete()
       .eq('id', id);

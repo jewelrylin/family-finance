@@ -4,44 +4,32 @@ import { api } from '../api';
 
 export default function FamilyManagement() {
   const { user } = useAuth();
-  const [families, setFamilies] = useState([]);
-  const [selectedFamily, setSelectedFamily] = useState('');
+  const [family, setFamily] = useState(null);
   const [members, setMembers] = useState([]);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
   const [newFamilyName, setNewFamilyName] = useState('');
-  const [joinFamilyId, setJoinFamilyId] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const loadFamilies = useCallback(async () => {
+  const loadData = useCallback(async () => {
     try {
-      const data = await api.getFamilies();
-      setFamilies(data.families);
-      if (data.families.length > 0 && (!selectedFamily || !data.families.find(f => f.id === selectedFamily))) {
-        setSelectedFamily(data.families[0].id);
-      }
+      const [familyData, membersData] = await Promise.all([
+        api.getMyFamily(),
+        api.getMembers()
+      ]);
+      setFamily(familyData.family);
+      setMembers(membersData.members || []);
+      setIsAdmin(membersData.isAdmin);
     } catch (err) {
-      console.error('Load families error:', err);
+      console.error('Load data error:', err);
     }
-  }, [selectedFamily]);
+  }, []);
 
-  const loadMembers = useCallback(async () => {
-    if (!selectedFamily) return;
-    try {
-      const data = await api.getMembers(selectedFamily);
-      setMembers(data.members);
-    } catch (err) {
-      console.error('Load members error:', err);
-    }
-  }, [selectedFamily]);
-
-  useEffect(() => { loadFamilies(); }, [loadFamilies]);
-  useEffect(() => { loadMembers(); }, [loadMembers]);
-
-  const isAdmin = families.find(f => f.id === selectedFamily)?.role === 'admin';
-  const currentFamily = families.find(f => f.id === selectedFamily);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -51,10 +39,10 @@ export default function FamilyManagement() {
       const data = await api.createFamily({ name: newFamilyName });
       setShowCreate(false);
       setNewFamilyName('');
-      setSelectedFamily(data.family.id);
-      await loadFamilies();
-      setSuccess('家庭建立成功！');
-      setTimeout(() => setSuccess(''), 3000);
+      setFamily(data.family);
+      setIsAdmin(true);
+      await loadData();
+      setSuccess(`家庭建立成功！邀請碼：${data.family.invite_code}`);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -67,10 +55,11 @@ export default function FamilyManagement() {
     setError('');
     setLoading(true);
     try {
-      await api.joinFamily(joinFamilyId);
+      const data = await api.joinFamily(inviteCode);
       setShowJoin(false);
-      setJoinFamilyId('');
-      await loadFamilies();
+      setInviteCode('');
+      setFamily(data.family);
+      await loadData();
       setSuccess('成功加入家庭！');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
@@ -83,8 +72,8 @@ export default function FamilyManagement() {
   const handleRemoveMember = async (userId) => {
     if (!confirm('確定要移除此成員嗎？')) return;
     try {
-      await api.removeMember(selectedFamily, userId);
-      await loadMembers();
+      await api.removeMember(userId);
+      await loadData();
       setSuccess('成員已移除');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
@@ -102,97 +91,90 @@ export default function FamilyManagement() {
       {error && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <div className="family-selector" style={{ marginBottom: 0 }}>
-          <select value={selectedFamily} onChange={e => setSelectedFamily(e.target.value)}>
-            {families.map(f => (
-              <option key={f.id} value={f.id}>{f.name}</option>
-            ))}
-          </select>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-secondary" onClick={() => setShowJoin(true)}>
-            加入家庭
-          </button>
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-            建立家庭
-          </button>
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 24, gap: 8 }}>
+        {!family && (
+          <>
+            <button className="btn btn-secondary" onClick={() => setShowJoin(true)}>加入家庭</button>
+            <button className="btn btn-primary" onClick={() => setShowCreate(true)}>建立家庭</button>
+          </>
+        )}
       </div>
 
-      <div className="grid-2">
+      {!family ? (
         <div className="card">
-          <div className="card-header">
-            <h3>家庭資訊</h3>
-          </div>
           <div className="card-body">
-            {currentFamily ? (
-              <div>
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>家庭名稱</div>
-                  <div style={{ fontSize: 18, fontWeight: 600 }}>{currentFamily.name}</div>
-                </div>
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>我的角色</div>
-                  <span className={`badge badge-${isAdmin ? 'admin' : 'member'}`}>
-                    {isAdmin ? '管理員' : '成員'}
-                  </span>
-                </div>
-                <div>
-                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>建立時間</div>
-                  <div style={{ fontSize: 14 }}>{new Date(currentFamily.created_at).toLocaleDateString('zh-TW')}</div>
-                </div>
+            <div className="empty-state">
+              <h3>您尚未加入任何家庭</h3>
+              <p>建立一個新家庭或透過邀請碼加入現有家庭</p>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                <button className="btn btn-primary" onClick={() => setShowCreate(true)}>建立家庭</button>
+                <button className="btn btn-secondary" onClick={() => setShowJoin(true)}>加入家庭</button>
               </div>
-            ) : (
-              <div className="empty-state">
-                <p>尚未加入任何家庭</p>
-              </div>
-            )}
+            </div>
           </div>
         </div>
-
-        <div className="card">
-          <div className="card-header">
-            <h3>家庭成員 ({members.length})</h3>
+      ) : (
+        <div className="grid-2">
+          <div className="card">
+            <div className="card-header"><h3>家庭資訊</h3></div>
+            <div className="card-body">
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>家庭名稱</div>
+                <div style={{ fontSize: 18, fontWeight: 600 }}>{family.name}</div>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>邀請碼</div>
+                <div style={{ fontSize: 18, fontWeight: 600, fontFamily: 'monospace', color: 'var(--color-primary)' }}>
+                  {family.invite_code}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                  將此邀請碼分享給家庭成員，他們即可加入
+                </div>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>我的角色</div>
+                <span className={`badge badge-${isAdmin ? 'admin' : 'member'}`}>
+                  {isAdmin ? '管理員' : '成員'}
+                </span>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>建立時間</div>
+                <div style={{ fontSize: 14 }}>{new Date(family.created_at).toLocaleDateString('zh-TW')}</div>
+              </div>
+            </div>
           </div>
-          <div className="card-body no-padding">
-            {members.length === 0 ? (
-              <div className="empty-state"><p>尚無成員</p></div>
-            ) : (
+
+          <div className="card">
+            <div className="card-header"><h3>家庭成員 ({members.length})</h3></div>
+            <div className="card-body no-padding">
               <ul className="member-list">
                 {members.map(m => (
                   <li key={m.id} className="member-item">
                     <div className="member-info">
-                      <div className="member-avatar">
-                        {m.user?.name?.charAt(0)?.toUpperCase() || '?'}
-                      </div>
+                      <div className="member-avatar">{m.name?.charAt(0)?.toUpperCase() || '?'}</div>
                       <div>
                         <div className="member-name">
-                          {m.user?.name || '未知'}
-                          {m.user?.id === user?.id && (
-                            <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 6 }}>(你)</span>
-                          )}
+                          {m.name}
+                          {m.id === user?.id && <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 6 }}>(你)</span>}
                         </div>
-                        <div className="member-email">{m.user?.email}</div>
+                        <div className="member-email">{m.email}</div>
                       </div>
                     </div>
                     <div className="member-actions">
                       <span className={`badge badge-${m.role === 'admin' ? 'admin' : 'member'}`}>
                         {m.role === 'admin' ? '管理員' : '成員'}
                       </span>
-                      {isAdmin && m.user?.id !== user?.id && (
-                        <button className="btn btn-danger btn-sm" onClick={() => handleRemoveMember(m.user.id)}>
-                          移除
-                        </button>
+                      {isAdmin && m.id !== user?.id && (
+                        <button className="btn btn-danger btn-sm" onClick={() => handleRemoveMember(m.id)}>移除</button>
                       )}
                     </div>
                   </li>
                 ))}
               </ul>
-            )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {showCreate && (
         <div className="modal-overlay" onClick={() => setShowCreate(false)}>
@@ -205,14 +187,8 @@ export default function FamilyManagement() {
               <div className="modal-body">
                 <div className="form-group">
                   <label className="form-label">家庭名稱</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="例如：我們的家"
-                    value={newFamilyName}
-                    onChange={e => setNewFamilyName(e.target.value)}
-                    required
-                  />
+                  <input type="text" className="form-input" placeholder="例如：我們的家"
+                    value={newFamilyName} onChange={e => setNewFamilyName(e.target.value)} required />
                 </div>
               </div>
               <div className="modal-footer">
@@ -236,18 +212,9 @@ export default function FamilyManagement() {
             <form onSubmit={handleJoin}>
               <div className="modal-body">
                 <div className="form-group">
-                  <label className="form-label">家庭 ID</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="請輸入家庭 ID（向管理員索取）"
-                    value={joinFamilyId}
-                    onChange={e => setJoinFamilyId(e.target.value)}
-                    required
-                  />
-                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>
-                    家庭 ID 可以在「家庭資訊」中找到，請向該家庭的管理員索取
-                  </div>
+                  <label className="form-label">邀請碼</label>
+                  <input type="text" className="form-input" placeholder="請輸入邀請碼（向管理員索取）"
+                    value={inviteCode} onChange={e => setInviteCode(e.target.value)} required />
                 </div>
               </div>
               <div className="modal-footer">
