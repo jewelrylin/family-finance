@@ -4,25 +4,26 @@ const path = require('path');
 try {
   require('dotenv').config({ path: path.join(__dirname, '.env') });
 } catch (e) {
-  // dotenv not available, use system env vars
+  // dotenv not available
 }
 
-let supabase = null;
+let client = null;
 
 function getClient() {
-  if (!supabase) {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_KEY;
+  if (!client) {
+    const url = process.env.SUPABASE_URL;
+    // 優先使用 service_role key（可繞過 RLS），否則使用 anon key
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
 
-    if (!supabaseUrl || !supabaseKey) {
+    if (!url || !key) {
       throw new Error('SUPABASE_URL 或 SUPABASE_KEY 未設定');
     }
 
-    supabase = createClient(supabaseUrl, supabaseKey, {
+    client = createClient(url, key, {
       auth: { persistSession: false }
     });
   }
-  return supabase;
+  return client;
 }
 
 module.exports = { getClient };
