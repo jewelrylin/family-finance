@@ -1,16 +1,10 @@
 [build]
   command = "cd client && npm install && npm run build"
   publish = "client/dist"
-  functions = "server/netlify/functions"
 
 [build.environment]
   CI = "false"
-
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/api/:splat"
-  status = 200
-  force = true
+  VITE_API_URL = "https://family-finance-api.onrender.com"
 
 [[redirects]]
   from = "/*"
