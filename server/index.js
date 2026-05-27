@@ -25,7 +25,12 @@ app.use('/api/transactions', transactionRoutes);
 app.use('/api/analysis', analysisRoutes);
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    supabase: process.env.SUPABASE_URL ? 'set' : 'missing',
+    serviceRole: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'set' : 'missing'
+  });
 });
 
 if (process.env.NODE_ENV === 'production') {
