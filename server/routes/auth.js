@@ -39,7 +39,7 @@ router.post('/register', async (req, res) => {
     res.status(201).json({ user: { id: user.id, email: user.email, name: user.display_name }, token });
   } catch (err) {
     console.error('Register error:', err);
-    res.status(500).json({ error: '註冊失敗: ' + (err.message || err) });
+    res.status(500).json({ error: '註冊失敗，請稍後再試' });
   }
 });
 
