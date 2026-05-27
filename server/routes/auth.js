@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const supabase = require('../db');
+const { getClient } = require('../db');
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'family-finance-secret-key-2026';
@@ -13,7 +13,7 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: '請填寫所有必填欄位' });
     }
 
-    const { data: existing } = await supabase
+    const { data: existing } = await getClient()
       .from('users')
       .select('id')
       .eq('email', email)
@@ -25,7 +25,7 @@ router.post('/register', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const { data: user, error } = await supabase
+    const { data: user, error } = await getClient()
       .from('users')
       .insert({ email, password: hashedPassword, name })
       .select('id, email, name, created_at')
@@ -49,7 +49,7 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: '請填寫信箱和密碼' });
     }
 
-    const { data: user, error } = await supabase
+    const { data: user, error } = await getClient()
       .from('users')
       .select('*')
       .eq('email', email)
@@ -76,7 +76,7 @@ router.post('/login', async (req, res) => {
 
 router.get('/me', require('../middleware/auth'), async (req, res) => {
   try {
-    const { data: user, error } = await supabase
+    const { data: user, error } = await getClient()
       .from('users')
       .select('id, email, name, created_at')
       .eq('id', req.user.id)

@@ -1,5 +1,5 @@
 const express = require('express');
-const supabase = require('../db');
+const { getClient } = require('../db');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
@@ -8,7 +8,7 @@ router.get('/family/:familyId', auth, async (req, res) => {
   try {
     const { familyId } = req.params;
 
-    const { data: membership } = await supabase
+    const { data: membership } = await getClient()
       .from('family_members')
       .select('role')
       .eq('family_id', familyId)
@@ -20,7 +20,7 @@ router.get('/family/:familyId', auth, async (req, res) => {
     }
 
     // 個人交易明細摘要
-    const { data: myTransactions } = await supabase
+    const { data: myTransactions } = await getClient()
       .from('transactions')
       .select('type, amount')
       .eq('family_id', familyId)
@@ -34,7 +34,7 @@ router.get('/family/:familyId', auth, async (req, res) => {
     mySummary.total = mySummary.income - mySummary.expense + mySummary.investment + mySummary.savings;
 
     // 家庭總計摘要（只能看總額）
-    const { data: allTransactions } = await supabase
+    const { data: allTransactions } = await getClient()
       .from('transactions')
       .select('type, amount, user_id')
       .eq('family_id', familyId);
@@ -58,7 +58,7 @@ router.get('/family/:familyId', auth, async (req, res) => {
 
     // 獲取成員名稱
     const memberIds = Object.keys(memberContributions);
-    const { data: users } = await supabase
+    const { data: users } = await getClient()
       .from('users')
       .select('id, name')
       .in('id', memberIds);

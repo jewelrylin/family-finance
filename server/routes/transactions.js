@@ -1,5 +1,5 @@
 const express = require('express');
-const supabase = require('../db');
+const { getClient } = require('../db');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/', auth, async (req, res) => {
   try {
     const { family_id, type, start_date, end_date } = req.query;
-    let query = supabase
+    let query = getClient()
       .from('transactions')
       .select('*')
       .eq('user_id', req.user.id)
@@ -41,7 +41,7 @@ router.post('/', auth, async (req, res) => {
       return res.status(400).json({ error: '無效的交易類型' });
     }
 
-    const { data: membership } = await supabase
+    const { data: membership } = await getClient()
       .from('family_members')
       .select('id')
       .eq('family_id', family_id)
@@ -52,7 +52,7 @@ router.post('/', auth, async (req, res) => {
       return res.status(403).json({ error: '你不是此家庭的成員' });
     }
 
-    const { data: transaction, error } = await supabase
+    const { data: transaction, error } = await getClient()
       .from('transactions')
       .insert({
         user_id: req.user.id,
@@ -80,7 +80,7 @@ router.put('/:id', auth, async (req, res) => {
     const { id } = req.params;
     const { amount, category, description, date, type } = req.body;
 
-    const { data: transaction } = await supabase
+    const { data: transaction } = await getClient()
       .from('transactions')
       .select('*')
       .eq('id', id)
@@ -98,7 +98,7 @@ router.put('/:id', auth, async (req, res) => {
     if (date !== undefined) updates.date = date;
     if (type !== undefined) updates.type = type;
 
-    const { data: updated, error } = await supabase
+    const { data: updated, error } = await getClient()
       .from('transactions')
       .update(updates)
       .eq('id', id)
@@ -119,7 +119,7 @@ router.delete('/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { data: transaction } = await supabase
+    const { data: transaction } = await getClient()
       .from('transactions')
       .select('id')
       .eq('id', id)
@@ -130,7 +130,7 @@ router.delete('/:id', auth, async (req, res) => {
       return res.status(404).json({ error: '交易記錄不存在' });
     }
 
-    await supabase
+    await getClient()
       .from('transactions')
       .delete()
       .eq('id', id);

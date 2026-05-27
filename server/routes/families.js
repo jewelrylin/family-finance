@@ -1,12 +1,12 @@
 const express = require('express');
-const supabase = require('../db');
+const { getClient } = require('../db');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
 
 router.get('/', auth, async (req, res) => {
   try {
-    const { data: memberships, error } = await supabase
+    const { data: memberships, error } = await getClient()
       .from('family_members')
       .select('family_id, role, families(id, name, created_at)')
       .eq('user_id', req.user.id);
@@ -34,7 +34,7 @@ router.post('/', auth, async (req, res) => {
       return res.status(400).json({ error: '請輸入家庭名稱' });
     }
 
-    const { data: family, error } = await supabase
+    const { data: family, error } = await getClient()
       .from('families')
       .insert({ name: name.trim(), created_by: req.user.id })
       .select()
@@ -42,7 +42,7 @@ router.post('/', auth, async (req, res) => {
 
     if (error) throw error;
 
-    await supabase
+    await getClient()
       .from('family_members')
       .insert({ family_id: family.id, user_id: req.user.id, role: 'admin' });
 
@@ -57,7 +57,7 @@ router.post('/:id/join', auth, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { data: family } = await supabase
+    const { data: family } = await getClient()
       .from('families')
       .select('id')
       .eq('id', id)
@@ -67,7 +67,7 @@ router.post('/:id/join', auth, async (req, res) => {
       return res.status(404).json({ error: '家庭不存在' });
     }
 
-    const { data: existing } = await supabase
+    const { data: existing } = await getClient()
       .from('family_members')
       .select('id')
       .eq('family_id', id)
@@ -78,7 +78,7 @@ router.post('/:id/join', auth, async (req, res) => {
       return res.status(400).json({ error: '你已經是此家庭的成員' });
     }
 
-    await supabase
+    await getClient()
       .from('family_members')
       .insert({ family_id: id, user_id: req.user.id, role: 'member' });
 
@@ -93,7 +93,7 @@ router.get('/:id/members', auth, async (req, res) => {
   try {
     const { id } = req.params;
 
-    const { data: membership } = await supabase
+    const { data: membership } = await getClient()
       .from('family_members')
       .select('role')
       .eq('family_id', id)
@@ -104,7 +104,7 @@ router.get('/:id/members', auth, async (req, res) => {
       return res.status(403).json({ error: '你不是此家庭的成員' });
     }
 
-    const { data: members, error } = await supabase
+    const { data: members, error } = await getClient()
       .from('family_members')
       .select('id, role, joined_at, users:user_id(id, email, name)')
       .eq('family_id', id);
@@ -129,7 +129,7 @@ router.delete('/:id/members/:userId', auth, async (req, res) => {
   try {
     const { id, userId } = req.params;
 
-    const { data: membership } = await supabase
+    const { data: membership } = await getClient()
       .from('family_members')
       .select('role')
       .eq('family_id', id)
@@ -144,7 +144,7 @@ router.delete('/:id/members/:userId', auth, async (req, res) => {
       return res.status(400).json({ error: '管理員不能移除自己，請先轉讓管理員權限' });
     }
 
-    await supabase
+    await getClient()
       .from('family_members')
       .delete()
       .eq('family_id', id)
