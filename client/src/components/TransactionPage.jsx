@@ -132,6 +132,7 @@ export default function TransactionPage({ type, description }) {
           onSubmit={editData ? handleUpdate : handleCreate}
           onClose={() => { setShowForm(false); setEditData(null); }}
           initialData={editData}
+          defaultType={editData ? undefined : type}
         />
       )}
     </div>

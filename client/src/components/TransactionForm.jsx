@@ -20,8 +20,8 @@ const freqOptions = [
   { value: 'yearly', label: '每年' }
 ];
 
-export default function TransactionForm({ onSubmit, onClose, initialData, familyId }) {
-  const [type, setType] = useState(initialData?.type || 'expense');
+export default function TransactionForm({ onSubmit, onClose, initialData, familyId, defaultType }) {
+  const [type, setType] = useState(initialData?.type || defaultType || 'expense');
   const [amount, setAmount] = useState(initialData?.amount || '');
   const [category, setCategory] = useState(initialData?.category || '');
   const [description, setDescription] = useState(initialData?.description || '');

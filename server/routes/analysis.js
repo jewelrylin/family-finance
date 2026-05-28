@@ -71,7 +71,13 @@ router.get('/family', auth, async (req, res) => {
       savings: toSortedArray(familyCategories.savings)
     };
 
-    // 成員貢獻
+    // 所有家庭成員（含無交易紀錄者）
+    const { data: allMembers } = await supabase
+      .from('users')
+      .select('id, display_name')
+      .eq('family_id', familyId);
+
+    // 成員貢獻（從交易計算）
     const memberContributions = {};
     (allTransactions || []).forEach(t => {
       const uid = t.user_id;
@@ -82,21 +88,19 @@ router.get('/family', auth, async (req, res) => {
       memberContributions[uid][type] = (memberContributions[uid][type] || 0) + parseFloat(t.amount);
     });
 
-    const memberIds = Object.keys(memberContributions);
-    const { data: users } = await supabase
-      .from('users')
-      .select('id, display_name')
-      .in('id', memberIds);
-
-    const userMap = {};
-    (users || []).forEach(u => { userMap[u.id] = u.display_name; });
-
-    const members = Object.entries(memberContributions).map(([uid, contrib]) => ({
-      user_id: parseInt(uid),
-      name: userMap[uid] || '未知',
-      ...contrib,
-      total: contrib.income - contrib.expense + contrib.investment + contrib.savings
-    }));
+    // 合併：所有家庭成員，即使沒有交易也要顯示
+    const members = (allMembers || []).map(u => {
+      const contrib = memberContributions[u.id] || { income: 0, expense: 0, investment: 0, savings: 0 };
+      return {
+        user_id: u.id,
+        name: u.display_name || '未知',
+        income: contrib.income,
+        expense: contrib.expense,
+        investment: contrib.investment,
+        savings: contrib.savings,
+        total: contrib.income - contrib.expense + contrib.investment + contrib.savings
+      };
+    });
 
     res.json({ mySummary, familySummary, categoryBreakdown, members });
   } catch (err) {
