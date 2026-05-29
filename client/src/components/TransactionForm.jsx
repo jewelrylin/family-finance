@@ -23,6 +23,8 @@ const freqOptions = [
 export default function TransactionForm({ onSubmit, onClose, initialData, familyId, defaultType }) {
   const [type, setType] = useState(initialData?.type || defaultType || 'expense');
   const [name, setName] = useState(initialData?.name || '');
+  const [ticker, setTicker] = useState(initialData?.ticker || '');
+  const [shares, setShares] = useState(initialData?.shares || '');
   const [amount, setAmount] = useState(initialData?.amount || '');
   const [category, setCategory] = useState(initialData?.category || '');
   const [description, setDescription] = useState(initialData?.description || '');
@@ -58,6 +60,8 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
         family_id: familyId,
         type,
         name: type === 'investment' ? name.trim() : '',
+        ticker: type === 'investment' ? ticker.trim().toUpperCase() : '',
+        shares: type === 'investment' && shares !== '' ? parseFloat(shares) : null,
         amount: parseFloat(amount),
         category: finalCategory,
         description,
@@ -106,17 +110,43 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
             </div>
 
             {type === 'investment' && (
-              <div className="form-group">
-                <label className="form-label">名稱</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="例如：台積電、0050、定期定額基金"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  required
-                />
-              </div>
+              <>
+                <div className="form-group">
+                  <label className="form-label">名稱</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="例如：台積電、0050、定期定額基金"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">股票代號（選填）</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="台股加 .TW，如 2330.TW；美股 AAPL"
+                      value={ticker}
+                      onChange={e => setTicker(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">股數（選填）</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      placeholder="例如 100"
+                      step="0.0001"
+                      min="0"
+                      value={shares}
+                      onChange={e => setShares(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </>
             )}
 
             <div className="form-row">

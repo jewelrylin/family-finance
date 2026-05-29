@@ -49,5 +49,12 @@ export const api = {
   deleteTransaction: (id) => request(`/transactions/${id}`, { method: 'DELETE' }),
 
   // Analysis
-  getAnalysis: () => request('/analysis/family')
+  getAnalysis: () => request('/analysis/family'),
+
+  // Prices
+  getPrices: (tickers) => {
+    const list = (tickers || []).filter(Boolean).join(',');
+    if (!list) return Promise.resolve({ prices: {} });
+    return request(`/prices?tickers=${encodeURIComponent(list)}`);
+  }
 };

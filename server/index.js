@@ -12,6 +12,7 @@ const authRoutes = require('./routes/auth');
 const familyRoutes = require('./routes/families');
 const transactionRoutes = require('./routes/transactions');
 const analysisRoutes = require('./routes/analysis');
+const pricesRoutes = require('./routes/prices');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -23,6 +24,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/families', familyRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/analysis', analysisRoutes);
+app.use('/api/prices', pricesRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({
