@@ -79,7 +79,6 @@ BEGIN
   ) THEN
     EXECUTE 'UPDATE users SET display_name = name WHERE display_name IS NULL AND name IS NOT NULL';
   END IF;
-
 END $$;
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;

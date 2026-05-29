@@ -9,3 +9,6 @@ data/
 
 # Local Netlify folder
 .netlify
+
+# Local Supabase CLI state
+supabase/.temp
