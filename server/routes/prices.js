@@ -30,6 +30,7 @@ async function fetchYahoo(ticker) {
       return {
         ticker,
         resolvedSymbol: sym,
+        source: 'yahoo',
         price: meta.regularMarketPrice,
         prevClose: meta.previousClose ?? meta.chartPreviousClose ?? null,
         currency: meta.currency || '',
@@ -42,6 +43,39 @@ async function fetchYahoo(ticker) {
     }
   }
   throw lastErr || new Error('no price');
+}
+
+async function fetchAnueFund(ticker) {
+  const url = `https://fund.api.cnyes.com/fund/api/v1/funds/${encodeURIComponent(ticker)}`;
+  const r = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+      'Accept': 'application/json',
+      'Origin': 'https://fund.cnyes.com',
+      'Referer': 'https://fund.cnyes.com/'
+    }
+  });
+  if (!r.ok) throw new Error(`anue ${r.status}`);
+  const j = await r.json();
+  const it = j?.items;
+  if (!it || it.nav == null) throw new Error('no nav');
+  const prevClose = it.change != null ? it.nav - it.change : null;
+  return {
+    ticker,
+    resolvedSymbol: ticker,
+    source: 'cnyes',
+    price: it.nav,
+    prevClose,
+    currency: it.classCurrency || '',
+    name: it.displayNameLocal || it.displayName || '',
+    marketState: '',
+    ts: Date.now()
+  };
+}
+
+async function fetchPrice(ticker) {
+  if (/^A\d{4,}$/i.test(ticker)) return fetchAnueFund(ticker.toUpperCase());
+  return fetchYahoo(ticker);
 }
 
 router.get('/', auth, async (req, res) => {
@@ -65,7 +99,7 @@ router.get('/', auth, async (req, res) => {
 
     await Promise.all(toFetch.map(async (t) => {
       try {
-        const entry = await fetchYahoo(t);
+        const entry = await fetchPrice(t);
         cache.set(t, entry);
         result[t] = entry;
       } catch (e) {
