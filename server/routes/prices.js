@@ -103,7 +103,8 @@ router.get('/', auth, async (req, res) => {
         cache.set(t, entry);
         result[t] = entry;
       } catch (e) {
-        result[t] = { ticker: t, error: e.message || 'fetch_failed' };
+        console.error(`[prices] ${t} failed:`, e?.message || e);
+        result[t] = { ticker: t, error: e?.message || 'fetch_failed' };
       }
     }));
 

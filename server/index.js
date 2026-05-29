@@ -31,8 +31,24 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     supabase: process.env.SUPABASE_URL ? 'set' : 'missing',
-    serviceRole: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'set' : 'missing'
+    serviceRole: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'set' : 'missing',
+    nodeVersion: process.version,
+    hasFetch: typeof fetch === 'function'
   });
+});
+
+app.get('/api/debug/price/:ticker', async (req, res) => {
+  try {
+    const t = (req.params.ticker || '').toUpperCase();
+    const url = /^A\d{4,}$/i.test(t)
+      ? `https://fund.api.cnyes.com/fund/api/v1/funds/${encodeURIComponent(t)}`
+      : `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(/^\d{4,6}$/.test(t) ? t + '.TW' : t)}`;
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const text = await r.text();
+    res.json({ url, status: r.status, body: text.slice(0, 800) });
+  } catch (e) {
+    res.json({ error: e?.message || String(e), stack: e?.stack?.split('\n').slice(0, 3) });
+  }
 });
 
 if (process.env.NODE_ENV === 'production') {
