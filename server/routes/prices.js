@@ -6,8 +6,8 @@ const router = express.Router();
 const cache = new Map();
 const TTL_MS = 60 * 1000;
 
-async function fetchYahoo(ticker) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1d`;
+async function fetchYahooSymbol(symbol) {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
   const r = await fetch(url, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
@@ -18,15 +18,30 @@ async function fetchYahoo(ticker) {
   const j = await r.json();
   const meta = j?.chart?.result?.[0]?.meta;
   if (!meta || meta.regularMarketPrice == null) throw new Error('no price');
-  return {
-    ticker,
-    price: meta.regularMarketPrice,
-    prevClose: meta.previousClose ?? meta.chartPreviousClose ?? null,
-    currency: meta.currency || '',
-    name: meta.shortName || meta.longName || '',
-    marketState: meta.marketState || '',
-    ts: Date.now()
-  };
+  return meta;
+}
+
+async function fetchYahoo(ticker) {
+  const candidates = /^\d{4,6}$/.test(ticker) ? [`${ticker}.TW`, `${ticker}.TWO`] : [ticker];
+  let lastErr;
+  for (const sym of candidates) {
+    try {
+      const meta = await fetchYahooSymbol(sym);
+      return {
+        ticker,
+        resolvedSymbol: sym,
+        price: meta.regularMarketPrice,
+        prevClose: meta.previousClose ?? meta.chartPreviousClose ?? null,
+        currency: meta.currency || '',
+        name: meta.shortName || meta.longName || '',
+        marketState: meta.marketState || '',
+        ts: Date.now()
+      };
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error('no price');
 }
 
 router.get('/', auth, async (req, res) => {
