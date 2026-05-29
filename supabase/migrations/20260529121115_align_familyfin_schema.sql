@@ -104,7 +104,7 @@ BEGIN
 END $$;
 
 UPDATE families
-SET invite_code = 'FF' || upper(substring(encode(gen_random_bytes(4), 'hex') from 1 for 8))
+SET invite_code = 'FF' || upper(substring(encode(extensions.gen_random_bytes(4), 'hex') from 1 for 8))
 WHERE invite_code IS NULL;
 
 ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_type_check;
