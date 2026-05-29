@@ -42,7 +42,7 @@ app.get('/api/debug/price/:ticker', async (req, res) => {
     const t = (req.params.ticker || '').toUpperCase();
     const url = /^A\d{4,}$/i.test(t)
       ? `https://fund.api.cnyes.com/fund/api/v1/funds/${encodeURIComponent(t)}`
-      : `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(/^\d{4,6}$/.test(t) ? t + '.TW' : t)}`;
+      : `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(/^\d{4,6}[A-Z]?$/.test(t) ? t + '.TW' : t)}`;
     const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
     const text = await r.text();
     res.json({ url, status: r.status, body: text.slice(0, 800) });

@@ -22,7 +22,7 @@ async function fetchYahooSymbol(symbol) {
 }
 
 async function fetchYahoo(ticker) {
-  const candidates = /^\d{4,6}$/.test(ticker) ? [`${ticker}.TW`, `${ticker}.TWO`] : [ticker];
+  const candidates = /^\d{4,6}[A-Z]?$/.test(ticker) ? [`${ticker}.TW`, `${ticker}.TWO`] : [ticker];
   let lastErr;
   for (const sym of candidates) {
     try {
