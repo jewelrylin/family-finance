@@ -9,7 +9,7 @@ const TTL_MS = 60 * 1000;
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
 
 function isAnueFund(ticker) {
-  return /^A\d{4,}$/i.test(ticker);
+  return /^[AB]\d{4,}$/i.test(ticker);
 }
 
 function isTaiwanCode(ticker) {
@@ -22,27 +22,48 @@ function candidatesFor(ticker) {
   return ['USS']; // 預設視為美股
 }
 
-async function fetchAnueFund(ticker) {
-  const url = `https://fund.api.cnyes.com/fund/api/v1/funds/${encodeURIComponent(ticker)}`;
+async function fetchAnuefundBatch(tickers) {
+  if (!tickers.length) return {};
+  const url = 'https://www.anuefund.com/anuefundApi/Search/Detail';
   const r = await fetch(url, {
-    headers: { 'User-Agent': UA, 'Accept': 'application/json', 'Origin': 'https://fund.cnyes.com', 'Referer': 'https://fund.cnyes.com/' }
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json, text/plain, */*',
+      'User-Agent': UA,
+      'Origin': 'https://www.anuefund.com',
+      'Referer': 'https://www.anuefund.com/'
+    },
+    body: JSON.stringify({ FundIDs: tickers.join(',') })
   });
-  if (!r.ok) throw new Error(`anue ${r.status}`);
+  if (!r.ok) throw new Error(`anuefund ${r.status}`);
   const j = await r.json();
-  const it = j?.items;
-  if (!it || it.nav == null) throw new Error('no nav');
-  const prevClose = it.change != null ? it.nav - it.change : null;
-  return {
-    ticker,
-    resolvedSymbol: ticker,
-    source: 'cnyes-fund',
-    price: it.nav,
-    prevClose,
-    currency: it.classCurrency || '',
-    name: it.displayNameLocal || it.displayName || '',
-    marketState: '',
-    ts: Date.now()
-  };
+  const arr = j?.data?.fundDatas;
+  if (!Array.isArray(arr)) throw new Error('anuefund bad payload');
+  const out = {};
+  for (const it of arr) {
+    if (!it) continue;
+    const navStr = it.navDesc;
+    const price = navStr != null && navStr !== '' ? parseFloat(navStr) : null;
+    if (price == null || Number.isNaN(price)) continue;
+    const upDown = it.upDownDesc != null && it.upDownDesc !== '' ? parseFloat(it.upDownDesc) : null;
+    const prevClose = upDown != null && !Number.isNaN(upDown) ? price - upDown : null;
+    const fid = it.fundTag?.fundID || it.fundID;
+    if (!fid) continue;
+    const upper = String(fid).toUpperCase();
+    out[upper] = {
+      ticker: upper,
+      resolvedSymbol: upper,
+      source: 'anuefund',
+      price,
+      prevClose,
+      currency: '',
+      name: it.fundNameLight || '',
+      marketState: '',
+      ts: Date.now()
+    };
+  }
+  return out;
 }
 
 async function fetchAnueQuotesBatch(tickers) {
@@ -113,13 +134,18 @@ router.get('/', auth, async (req, res) => {
 
     const tasks = [];
 
-    for (const t of pendingFund) {
+    if (pendingFund.length) {
       tasks.push(
-        fetchAnueFund(t)
-          .then(e => { cache.set(t, e); result[t] = e; })
+        fetchAnuefundBatch(pendingFund)
+          .then(out => {
+            for (const t of pendingFund) {
+              if (out[t]) { cache.set(t, out[t]); result[t] = out[t]; }
+              else result[t] = { ticker: t, error: 'not_found' };
+            }
+          })
           .catch(e => {
-            console.error(`[prices] ${t} anue fund failed:`, e?.message);
-            result[t] = { ticker: t, error: e?.message || 'fetch_failed' };
+            console.error('[prices] anuefund batch failed:', e?.message);
+            for (const t of pendingFund) result[t] = { ticker: t, error: e?.message || 'fetch_failed' };
           })
       );
     }

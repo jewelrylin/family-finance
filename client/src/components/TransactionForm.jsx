@@ -128,7 +128,7 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="台股 2330、美股 AAPL、鉅亨基金 A16003"
+                      placeholder="台股 2330、美股 AAPL、鉅亨基金 A16003 或 B25165"
                       value={ticker}
                       onChange={e => setTicker(e.target.value)}
                     />
