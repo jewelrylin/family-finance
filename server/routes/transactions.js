@@ -65,7 +65,7 @@ router.post('/', auth, async (req, res) => {
       .eq('id', req.user.id)
       .maybeSingle();
 
-    if (!user || user.family_id !== parseInt(family_id)) {
+    if (!user || String(user.family_id) !== String(family_id)) {
       return res.status(403).json({ error: '你不是此家庭的成員' });
     }
 
@@ -73,7 +73,7 @@ router.post('/', auth, async (req, res) => {
       .from('transactions')
       .insert({
         user_id: req.user.id,
-        family_id: parseInt(family_id),
+        family_id,
         type: dbType,
         amount: parseFloat(amount),
         category: category || '',

@@ -86,11 +86,16 @@ router.post('/join', auth, async (req, res) => {
 
     const supabase = getClient();
 
-    const { data: family } = await supabase
+    const { data: family, error: queryError } = await supabase
       .from('families')
       .select('*')
       .eq('invite_code', inviteCode.trim().toUpperCase())
       .maybeSingle();
+
+    if (queryError) {
+      console.error('Join family query error:', queryError);
+      return res.status(500).json({ error: '查詢家庭時發生錯誤，請稍後再試' });
+    }
 
     if (!family) {
       return res.status(404).json({ error: '找不到此邀請碼對應的家庭' });
@@ -174,7 +179,7 @@ router.delete('/members/:userId', auth, async (req, res) => {
       return res.status(403).json({ error: '只有管理員可以移除成員' });
     }
 
-    if (parseInt(userId) === req.user.id) {
+    if (String(userId) === String(req.user.id)) {
       return res.status(400).json({ error: '管理員不能移除自己' });
     }
 
