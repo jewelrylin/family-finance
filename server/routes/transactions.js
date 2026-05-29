@@ -46,7 +46,7 @@ router.get('/', auth, async (req, res) => {
 
 router.post('/', auth, async (req, res) => {
   try {
-    const { family_id, type, amount, category, description, date, recurring, recurring_freq } = req.body;
+    const { family_id, type, amount, category, description, date, recurring, recurring_freq, name } = req.body;
     const dbType = normalizeType(type);
 
     if (!family_id || !type || !amount) {
@@ -75,6 +75,7 @@ router.post('/', auth, async (req, res) => {
         user_id: req.user.id,
         family_id,
         type: dbType,
+        name: name || '',
         amount: parseFloat(amount),
         category: category || '',
         note: description || '',
@@ -108,7 +109,7 @@ router.post('/', auth, async (req, res) => {
 router.put('/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { amount, category, description, date, type, recurring, recurring_freq } = req.body;
+    const { amount, category, description, date, type, recurring, recurring_freq, name } = req.body;
 
     const supabase = getClient();
 
@@ -124,6 +125,7 @@ router.put('/:id', auth, async (req, res) => {
     }
 
     const updates = {};
+    if (name !== undefined) updates.name = name;
     if (amount !== undefined) updates.amount = parseFloat(amount);
     if (category !== undefined) updates.category = category;
     if (description !== undefined) updates.note = description;

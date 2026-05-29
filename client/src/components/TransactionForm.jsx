@@ -22,6 +22,7 @@ const freqOptions = [
 
 export default function TransactionForm({ onSubmit, onClose, initialData, familyId, defaultType }) {
   const [type, setType] = useState(initialData?.type || defaultType || 'expense');
+  const [name, setName] = useState(initialData?.name || '');
   const [amount, setAmount] = useState(initialData?.amount || '');
   const [category, setCategory] = useState(initialData?.category || '');
   const [description, setDescription] = useState(initialData?.description || '');
@@ -56,6 +57,7 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
       await onSubmit({
         family_id: familyId,
         type,
+        name: type === 'investment' ? name.trim() : '',
         amount: parseFloat(amount),
         category: finalCategory,
         description,
@@ -102,6 +104,20 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
                 ))}
               </div>
             </div>
+
+            {type === 'investment' && (
+              <div className="form-group">
+                <label className="form-label">名稱</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="例如：台積電、0050、定期定額基金"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  required
+                />
+              </div>
+            )}
 
             <div className="form-row">
               <div className="form-group">

@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   family_id UUID REFERENCES families(id) ON DELETE CASCADE,
   type TEXT CHECK (type IN ('income', 'expense', 'investment', 'deposit')),
+  name TEXT DEFAULT '',
   amount DECIMAL(12, 2) NOT NULL,
   category TEXT DEFAULT '',
   note TEXT DEFAULT '',
@@ -87,6 +88,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS family_id UUID REFERENCES families(id) ON DELETE SET NULL;
 ALTER TABLE families ADD COLUMN IF NOT EXISTS invite_code TEXT UNIQUE;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS name TEXT DEFAULT '';
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS note TEXT DEFAULT '';
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS recurring BOOLEAN DEFAULT FALSE;
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS recurring_freq TEXT DEFAULT '';

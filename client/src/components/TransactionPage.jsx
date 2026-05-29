@@ -90,6 +90,7 @@ export default function TransactionPage({ type, description }) {
                 <thead>
                   <tr>
                     <th>日期</th>
+                    {type === 'investment' && <th>名稱</th>}
                     <th>類別</th>
                     <th>金額</th>
                     <th>備註</th>
@@ -101,6 +102,7 @@ export default function TransactionPage({ type, description }) {
                   {transactions.map(t => (
                     <tr key={t.id}>
                       <td>{new Date(t.date).toLocaleDateString('zh-TW')}</td>
+                      {type === 'investment' && <td style={{ fontWeight: 600 }}>{t.name || '-'}</td>}
                       <td><span className={`badge badge-${t.type}`}>{t.category || '未分類'}</span></td>
                       <td style={{ fontWeight: 600 }}>NT$ {parseFloat(t.amount).toLocaleString()}</td>
                       <td style={{ color: 'var(--color-text-secondary)' }}>{t.description || '-'}</td>
