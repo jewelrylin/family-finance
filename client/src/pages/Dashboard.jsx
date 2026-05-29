@@ -32,7 +32,10 @@ export default function Dashboard() {
       setTransactions(txData.transactions || []);
       const s = { income: 0, expense: 0, investment: 0, savings: 0 };
       (txData.transactions || []).forEach(t => {
-        s[t.type] = (s[t.type] || 0) + parseFloat(t.amount);
+        const amt = parseFloat(t.amount) || 0;
+        const sh = parseFloat(t.shares);
+        const value = t.type === 'investment' && !Number.isNaN(sh) && sh > 0 ? amt * sh : amt;
+        s[t.type] = (s[t.type] || 0) + value;
       });
       setSummary(s);
     } catch (err) {
@@ -123,7 +126,12 @@ export default function Dashboard() {
                       <td><span className={`badge badge-${t.type}`}>{typeLabels[t.type]}</span></td>
                       <td>{t.category || '-'}</td>
                       <td className={t.type === 'expense' ? 'text-negative' : 'text-positive'}>
-                        {t.type === 'expense' ? '-' : '+'}NT$ {parseFloat(t.amount).toLocaleString()}
+                        {(() => {
+                          const amt = parseFloat(t.amount) || 0;
+                          const sh = parseFloat(t.shares);
+                          const v = t.type === 'investment' && !Number.isNaN(sh) && sh > 0 ? amt * sh : amt;
+                          return `${t.type === 'expense' ? '-' : '+'}NT$ ${v.toLocaleString()}`;
+                        })()}
                       </td>
                       <td>
                         {t.recurring ? (

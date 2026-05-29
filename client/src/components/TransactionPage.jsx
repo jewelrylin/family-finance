@@ -29,6 +29,14 @@ export default function TransactionPage({ type, description }) {
     }
   }, [type]);
 
+  const txTotalCost = useCallback((tx) => {
+    if (type === 'investment') {
+      const sh = parseFloat(tx.shares);
+      if (!Number.isNaN(sh) && sh > 0) return (parseFloat(tx.amount) || 0) * sh;
+    }
+    return parseFloat(tx.amount) || 0;
+  }, [type]);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -39,7 +47,7 @@ export default function TransactionPage({ type, description }) {
       setFamily(familyData.family);
       const txs = txData.transactions || [];
       setTransactions(txs);
-      const t = txs.reduce((sum, tx) => sum + parseFloat(tx.amount), 0);
+      const t = txs.reduce((sum, tx) => sum + txTotalCost(tx), 0);
       setTotal(t);
       loadPrices(txs);
     } catch (err) {
@@ -47,7 +55,7 @@ export default function TransactionPage({ type, description }) {
     } finally {
       setLoading(false);
     }
-  }, [type, loadPrices]);
+  }, [type, loadPrices, txTotalCost]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -78,7 +86,7 @@ export default function TransactionPage({ type, description }) {
       const sh = parseFloat(t.shares);
       if (p != null && !Number.isNaN(sh) && sh > 0) {
         marketValue += p * sh;
-        costOfPriced += parseFloat(t.amount) || 0;
+        costOfPriced += (parseFloat(t.amount) || 0) * sh;
       }
     });
   }
@@ -150,7 +158,8 @@ export default function TransactionPage({ type, description }) {
                     {type === 'investment' && <th>代號</th>}
                     {type === 'investment' && <th>股數</th>}
                     <th>類別</th>
-                    <th>{type === 'investment' ? '成本' : '金額'}</th>
+                    <th>{type === 'investment' ? '買入價' : '金額'}</th>
+                    {type === 'investment' && <th>總成本</th>}
                     {type === 'investment' && <th>現價</th>}
                     {type === 'investment' && <th>市值</th>}
                     {type === 'investment' && <th>損益</th>}
@@ -166,10 +175,11 @@ export default function TransactionPage({ type, description }) {
                     const livePrice = priceInfo && !priceInfo.error ? priceInfo.price : null;
                     const sh = parseFloat(t.shares);
                     const hasShares = !Number.isNaN(sh) && sh > 0;
+                    const unitCost = parseFloat(t.amount) || 0;
+                    const rowTotalCost = type === 'investment' && hasShares ? unitCost * sh : unitCost;
                     const rowMarketValue = livePrice != null && hasShares ? livePrice * sh : null;
-                    const rowCost = parseFloat(t.amount) || 0;
-                    const rowPnl = rowMarketValue != null ? rowMarketValue - rowCost : null;
-                    const rowPnlPct = rowPnl != null && rowCost > 0 ? (rowPnl / rowCost) * 100 : null;
+                    const rowPnl = rowMarketValue != null ? rowMarketValue - rowTotalCost : null;
+                    const rowPnlPct = rowPnl != null && rowTotalCost > 0 ? (rowPnl / rowTotalCost) * 100 : null;
                     return (
                     <tr key={t.id}>
                       <td>{new Date(t.date).toLocaleDateString('zh-TW')}</td>
@@ -185,7 +195,14 @@ export default function TransactionPage({ type, description }) {
                         </td>
                       )}
                       <td><span className={`badge badge-${t.type}`}>{t.category || '未分類'}</span></td>
-                      <td style={{ fontWeight: 600 }}>NT$ {rowCost.toLocaleString()}</td>
+                      <td style={{ fontWeight: 600 }}>
+                        {type === 'investment' ? `NT$ ${unitCost.toLocaleString(undefined, { maximumFractionDigits: 4 })}` : `NT$ ${unitCost.toLocaleString()}`}
+                      </td>
+                      {type === 'investment' && (
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                          NT$ {rowTotalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                      )}
                       {type === 'investment' && (
                         <td style={{ textAlign: 'right' }}>
                           {priceInfo?.error ? (

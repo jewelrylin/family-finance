@@ -151,13 +151,15 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
 
             <div className="form-row">
               <div className="form-group">
-                <label className="form-label">金額</label>
+                <label className="form-label">
+                  {type === 'investment' ? '買入價（每股／每單位）' : '金額'}
+                </label>
                 <input
                   type="number"
                   className="form-input"
-                  placeholder="0.00"
-                  step="0.01"
-                  min="0.01"
+                  placeholder={type === 'investment' ? '例如 1050.5' : '0.00'}
+                  step="0.0001"
+                  min="0.0001"
                   value={amount}
                   onChange={e => setAmount(e.target.value)}
                   required

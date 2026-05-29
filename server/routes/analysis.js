@@ -25,10 +25,20 @@ router.get('/family', auth, async (req, res) => {
 
     const familyId = user.family_id;
 
+    // 投資類型用 amount × shares 當總成本，其他類型直接用 amount
+    const txCost = (t) => {
+      const amt = parseFloat(t.amount) || 0;
+      if (t.type === 'investment') {
+        const sh = parseFloat(t.shares);
+        if (!Number.isNaN(sh) && sh > 0) return amt * sh;
+      }
+      return amt;
+    };
+
     // 個人交易（含 category 欄位用於分類明細）
     const { data: myTransactions } = await supabase
       .from('transactions')
-      .select('type, amount, category')
+      .select('type, amount, category, shares')
       .eq('family_id', familyId)
       .eq('user_id', req.user.id);
 
@@ -36,25 +46,27 @@ router.get('/family', auth, async (req, res) => {
     const myCategories = { income: {}, expense: {}, investment: {}, savings: {} };
     (myTransactions || []).forEach(t => {
       const type = t.type === 'deposit' ? 'savings' : t.type;
-      mySummary[type] = (mySummary[type] || 0) + parseFloat(t.amount);
+      const value = txCost(t);
+      mySummary[type] = (mySummary[type] || 0) + value;
       const cat = t.category || '未分類';
-      myCategories[type][cat] = (myCategories[type][cat] || 0) + parseFloat(t.amount);
+      myCategories[type][cat] = (myCategories[type][cat] || 0) + value;
     });
     mySummary.total = mySummary.income - mySummary.expense + mySummary.investment + mySummary.savings;
 
     // 家庭全部交易（含 category 欄位）
     const { data: allTransactions } = await supabase
       .from('transactions')
-      .select('type, amount, category, user_id')
+      .select('type, amount, category, user_id, shares')
       .eq('family_id', familyId);
 
     const familySummary = { income: 0, expense: 0, investment: 0, savings: 0, total: 0 };
     const familyCategories = { income: {}, expense: {}, investment: {}, savings: {} };
     (allTransactions || []).forEach(t => {
       const type = t.type === 'deposit' ? 'savings' : t.type;
-      familySummary[type] = (familySummary[type] || 0) + parseFloat(t.amount);
+      const value = txCost(t);
+      familySummary[type] = (familySummary[type] || 0) + value;
       const cat = t.category || '未分類';
-      familyCategories[type][cat] = (familyCategories[type][cat] || 0) + parseFloat(t.amount);
+      familyCategories[type][cat] = (familyCategories[type][cat] || 0) + value;
     });
     familySummary.total = familySummary.income - familySummary.expense + familySummary.investment + familySummary.savings;
 
@@ -85,7 +97,7 @@ router.get('/family', auth, async (req, res) => {
         memberContributions[uid] = { income: 0, expense: 0, investment: 0, savings: 0 };
       }
       const type = t.type === 'deposit' ? 'savings' : t.type;
-      memberContributions[uid][type] = (memberContributions[uid][type] || 0) + parseFloat(t.amount);
+      memberContributions[uid][type] = (memberContributions[uid][type] || 0) + txCost(t);
     });
 
     // 合併：所有家庭成員，即使沒有交易也要顯示
