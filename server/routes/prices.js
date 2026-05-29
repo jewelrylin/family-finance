@@ -8,10 +8,18 @@ const TTL_MS = 60 * 1000;
 
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
 
-function classify(ticker) {
-  if (/^A\d{4,}$/i.test(ticker)) return 'anue';
-  if (/^\d{4,6}[A-Z]?$/.test(ticker)) return 'twse';
-  return 'yahoo';
+function isAnueFund(ticker) {
+  return /^A\d{4,}$/i.test(ticker);
+}
+
+function isTaiwanCode(ticker) {
+  return /^\d{4,6}[A-Z]?$/.test(ticker);
+}
+
+// 一支 ticker 可能對應的鉅亨市場前綴
+function candidatesFor(ticker) {
+  if (isTaiwanCode(ticker)) return ['TWS', 'TWG']; // 上市、上櫃
+  return ['USS']; // 預設視為美股
 }
 
 async function fetchAnueFund(ticker) {
@@ -27,7 +35,7 @@ async function fetchAnueFund(ticker) {
   return {
     ticker,
     resolvedSymbol: ticker,
-    source: 'cnyes',
+    source: 'cnyes-fund',
     price: it.nav,
     prevClose,
     currency: it.classCurrency || '',
@@ -37,59 +45,44 @@ async function fetchAnueFund(ticker) {
   };
 }
 
-async function fetchYahooSymbol(symbol) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
-  const r = await fetch(url, { headers: { 'User-Agent': UA, 'Accept': 'application/json' } });
-  if (!r.ok) throw new Error(`yahoo ${r.status}`);
-  const j = await r.json();
-  const meta = j?.chart?.result?.[0]?.meta;
-  if (!meta || meta.regularMarketPrice == null) throw new Error('no price');
-  return meta;
-}
-
-async function fetchYahoo(ticker) {
-  const meta = await fetchYahooSymbol(ticker);
-  return {
-    ticker,
-    resolvedSymbol: ticker,
-    source: 'yahoo',
-    price: meta.regularMarketPrice,
-    prevClose: meta.previousClose ?? meta.chartPreviousClose ?? null,
-    currency: meta.currency || '',
-    name: meta.shortName || meta.longName || '',
-    marketState: meta.marketState || '',
-    ts: Date.now()
-  };
-}
-
-async function fetchTwseBatch(tickers) {
-  // 一次查所有 ticker 的上市 + 上櫃版本
-  const codes = tickers.flatMap(t => [`tse_${t}.tw`, `otc_${t}.tw`]);
-  const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${codes.join('|')}&json=1&delay=0&_=${Date.now()}`;
+async function fetchAnueQuotesBatch(tickers) {
+  if (!tickers.length) return {};
+  // 對每個 ticker 加上所有可能 prefix，鉅亨會自動跳過不存在的
+  const symbols = [];
+  for (const t of tickers) {
+    for (const prefix of candidatesFor(t)) {
+      symbols.push(`${prefix}:${t}:STOCK`);
+    }
+  }
+  const url = `https://ws.api.cnyes.com/ws/api/v1/quote/quotes/${symbols.join(',')}`;
   const r = await fetch(url, {
-    headers: { 'User-Agent': UA, 'Accept': 'application/json', 'Referer': 'https://mis.twse.com.tw/stock/index.jsp' }
+    headers: { 'User-Agent': UA, 'Accept': 'application/json', 'Origin': 'https://www.cnyes.com', 'Referer': 'https://www.cnyes.com/' }
   });
-  if (!r.ok) throw new Error(`twse ${r.status}`);
+  if (!r.ok) throw new Error(`cnyes ${r.status}`);
   const j = await r.json();
-  const arr = Array.isArray(j?.msgArray) ? j.msgArray : [];
+  if (j?.statusCode !== 200 && j?.statusCode !== 4002) throw new Error(`cnyes ${j?.statusCode}`);
+  const items = Array.isArray(j?.data) ? j.data : [];
   const out = {};
-  for (const m of arr) {
-    const code = m.c;
+  for (const it of items) {
+    if (!it || typeof it !== 'object' || it.error_message) continue;
+    const sym = it['0'] || it['800013'];
+    if (!sym) continue;
+    const parts = sym.split(':');
+    const market = parts[0];
+    const code = parts[1];
     if (!code) continue;
-    // pz=當前成交，z=最新成交，y=昨收
-    const priceStr = m.z && m.z !== '-' ? m.z : (m.pz && m.pz !== '-' ? m.pz : null);
-    const price = priceStr ? parseFloat(priceStr) : null;
-    const prevClose = m.y ? parseFloat(m.y) : null;
-    if (price == null || Number.isNaN(price)) continue;
-    // 同一 code 上市/上櫃只會回一個
+    const price = typeof it['6'] === 'number' ? it['6'] : null;
+    if (price == null) continue;
+    const prevClose = typeof it['21'] === 'number' ? it['21'] : null;
+    const isTW = market === 'TWS' || market === 'TWG';
     out[code] = {
       ticker: code,
-      resolvedSymbol: `${m.ex || ''}_${code}.tw`,
-      source: 'twse',
+      resolvedSymbol: sym,
+      source: 'cnyes',
       price,
       prevClose,
-      currency: 'TWD',
-      name: m.n || m.nf || '',
+      currency: isTW ? 'TWD' : (market === 'USS' ? 'USD' : ''),
+      name: it['200009'] || it['200010'] || '',
       marketState: '',
       ts: Date.now()
     };
@@ -105,7 +98,8 @@ router.get('/', auth, async (req, res) => {
 
     const now = Date.now();
     const result = {};
-    const pending = { anue: [], twse: [], yahoo: [] };
+    const pendingFund = [];
+    const pendingQuote = [];
 
     for (const t of tickers) {
       const c = cache.get(t);
@@ -113,48 +107,35 @@ router.get('/', auth, async (req, res) => {
         result[t] = c;
         continue;
       }
-      pending[classify(t)].push(t);
+      if (isAnueFund(t)) pendingFund.push(t);
+      else pendingQuote.push(t);
     }
 
     const tasks = [];
 
-    // 鉅亨基金（個別呼叫）
-    for (const t of pending.anue) {
+    for (const t of pendingFund) {
       tasks.push(
         fetchAnueFund(t)
           .then(e => { cache.set(t, e); result[t] = e; })
           .catch(e => {
-            console.error(`[prices] ${t} anue failed:`, e?.message);
+            console.error(`[prices] ${t} anue fund failed:`, e?.message);
             result[t] = { ticker: t, error: e?.message || 'fetch_failed' };
           })
       );
     }
 
-    // TWSE 批次
-    if (pending.twse.length) {
+    if (pendingQuote.length) {
       tasks.push(
-        fetchTwseBatch(pending.twse)
+        fetchAnueQuotesBatch(pendingQuote)
           .then(out => {
-            for (const t of pending.twse) {
+            for (const t of pendingQuote) {
               if (out[t]) { cache.set(t, out[t]); result[t] = out[t]; }
-              else result[t] = { ticker: t, error: 'twse_not_found' };
+              else result[t] = { ticker: t, error: 'not_found' };
             }
           })
           .catch(e => {
-            console.error('[prices] twse batch failed:', e?.message);
-            for (const t of pending.twse) result[t] = { ticker: t, error: e?.message || 'twse_failed' };
-          })
-      );
-    }
-
-    // Yahoo 美股等
-    for (const t of pending.yahoo) {
-      tasks.push(
-        fetchYahoo(t)
-          .then(e => { cache.set(t, e); result[t] = e; })
-          .catch(e => {
-            console.error(`[prices] ${t} yahoo failed:`, e?.message);
-            result[t] = { ticker: t, error: e?.message || 'fetch_failed' };
+            console.error('[prices] cnyes batch failed:', e?.message);
+            for (const t of pendingQuote) result[t] = { ticker: t, error: e?.message || 'fetch_failed' };
           })
       );
     }
