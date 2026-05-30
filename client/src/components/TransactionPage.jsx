@@ -154,7 +154,7 @@ export default function TransactionPage({ type, description }) {
               </div>
               <div style={{ textAlign: 'left' }}>
                 <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>損益（已估價部分）</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: pnl >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                <div style={{ fontSize: 24, fontWeight: 700, color: pnl >= 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
                   {pnl >= 0 ? '+' : ''}NT$ {pnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   <span style={{ fontSize: 14, marginLeft: 8 }}>({pnl >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%)</span>
                 </div>
@@ -270,7 +270,7 @@ export default function TransactionPage({ type, description }) {
                         </td>
                       )}
                       {type === 'investment' && (
-                        <td style={{ textAlign: 'right', fontWeight: 600, color: rowPnl == null ? 'var(--color-text-muted)' : rowPnl >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                        <td style={{ textAlign: 'right', fontWeight: 600, color: rowPnl == null ? 'var(--color-text-muted)' : rowPnl >= 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
                           {rowPnl == null ? '-' : (
                             <>
                               {rowPnl >= 0 ? '+' : ''}{ccyPrefix}{rowPnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
