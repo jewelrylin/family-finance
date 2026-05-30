@@ -127,13 +127,13 @@ router.post('/join', auth, async (req, res) => {
     }
 
     try {
-      await updateUser(supabase, req.user.id, { family_id: family.id, role: 'member' });
+      await updateUser(supabase, req.user.id, { family_id: family.id, role: 'user' });
     } catch (e) {
       console.error('Join family: user update failed:', e?.message || e);
       return res.status(500).json({ error: '加入家庭失敗，使用者資料無法更新', detail: e?.message });
     }
 
-    res.json({ family: { ...family, role: 'member' } });
+    res.json({ family: { ...family, role: 'user' } });
   } catch (err) {
     console.error('Join family error:', err);
     res.status(500).json({ error: '加入家庭失敗' });
