@@ -10,9 +10,11 @@ export default function FamilyManagement() {
   const [showCreate, setShowCreate] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
+  const [showAddExisting, setShowAddExisting] = useState(false);
   const [newFamilyName, setNewFamilyName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [newMember, setNewMember] = useState({ email: '', password: '', name: '' });
+  const [existingEmail, setExistingEmail] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -80,6 +82,24 @@ export default function FamilyManagement() {
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const handleAddExisting = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const data = await api.addExistingMember(existingEmail.trim());
+      setShowAddExisting(false);
+      setExistingEmail('');
+      await loadData();
+      setSuccess(`已將「${data.member.name}」加入家庭`);
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -168,9 +188,14 @@ export default function FamilyManagement() {
             <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h3>家庭成員 ({members.length})</h3>
               {isAdmin && (
-                <button className="btn btn-primary btn-sm" onClick={() => setShowAddMember(true)}>
-                  新增成員
-                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setShowAddExisting(true)}>
+                    加入既有帳號
+                  </button>
+                  <button className="btn btn-primary btn-sm" onClick={() => setShowAddMember(true)}>
+                    新增成員
+                  </button>
+                </div>
               )}
             </div>
             <div className="card-body no-padding">
@@ -222,6 +247,35 @@ export default function FamilyManagement() {
                 <button type="button" className="btn btn-secondary" onClick={() => setShowCreate(false)}>取消</button>
                 <button type="submit" className="btn btn-primary" disabled={loading}>
                   {loading ? '建立中...' : '建立'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showAddExisting && (
+        <div className="modal-overlay" onClick={() => setShowAddExisting(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>加入既有帳號</h3>
+              <button className="modal-close" onClick={() => setShowAddExisting(false)}>&times;</button>
+            </div>
+            <form onSubmit={handleAddExisting}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">使用者信箱</label>
+                  <input type="email" className="form-input" placeholder="輸入已註冊帳號的信箱"
+                    value={existingEmail} onChange={e => setExistingEmail(e.target.value)} required autoFocus />
+                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                    對方須已註冊過 FamilyFin 且尚未加入任何家庭
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowAddExisting(false)}>取消</button>
+                <button type="submit" className="btn btn-primary" disabled={loading}>
+                  {loading ? '加入中...' : '加入家庭'}
                 </button>
               </div>
             </form>

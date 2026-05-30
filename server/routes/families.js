@@ -247,6 +247,58 @@ router.post('/members', auth, async (req, res) => {
   }
 });
 
+// 管理員把既有帳號拉進家庭（不建立新帳號）
+router.post('/members/existing', auth, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: '請提供使用者信箱' });
+    }
+
+    const supabase = getClient();
+    const admin = await requireFamilyAdmin(supabase, req.user.id);
+    if (!admin) {
+      return res.status(403).json({ error: '只有管理員可以加入成員' });
+    }
+
+    const { data: target } = await supabase
+      .from('users')
+      .select('id, email, display_name, family_id')
+      .eq('email', email.trim())
+      .maybeSingle();
+
+    if (!target) {
+      return res.status(404).json({ error: '找不到此信箱的使用者' });
+    }
+
+    if (target.family_id) {
+      if (String(target.family_id) === String(admin.family_id)) {
+        return res.status(400).json({ error: '此使用者已經在你的家庭中' });
+      }
+      return res.status(400).json({ error: '此使用者已加入其他家庭，需先請他離開' });
+    }
+
+    try {
+      await updateUser(supabase, target.id, { family_id: admin.family_id, role: 'user' });
+    } catch (e) {
+      console.error('Add existing member: update failed:', e?.message || e);
+      return res.status(500).json({ error: '加入失敗，使用者資料無法更新', detail: e?.message });
+    }
+
+    res.json({
+      member: {
+        id: target.id,
+        email: target.email,
+        name: target.display_name,
+        role: 'user'
+      }
+    });
+  } catch (err) {
+    console.error('Add existing member error:', err);
+    res.status(500).json({ error: '加入既有使用者失敗' });
+  }
+});
+
 // 管理員刪除成員（完全刪除帳號 + 連動刪除其交易）
 router.delete('/members/:userId', auth, async (req, res) => {
   try {
