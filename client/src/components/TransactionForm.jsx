@@ -71,7 +71,7 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
       await onSubmit({
         family_id: familyId,
         type,
-        name: type === 'investment' ? name.trim() : '',
+        name: (type === 'investment' || type === 'savings') ? name.trim() : '',
         ticker: type === 'investment' ? ticker.trim().toUpperCase() : '',
         shares: type === 'investment' && shares !== '' ? parseFloat(shares) : null,
         currency: type === 'investment' ? currency : 'TWD',
@@ -121,6 +121,20 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
                 ))}
               </div>
             </div>
+
+            {type === 'savings' && (
+              <div className="form-group">
+                <label className="form-label">銀行</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="例如：玉山、國泰世華、台新"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  required
+                />
+              </div>
+            )}
 
             {type === 'investment' && (
               <>
