@@ -49,16 +49,82 @@ export default function TransactionPage({ type, description }) {
     }
   }, [type]);
 
-  // 用交易記錄的幣別換算回 TWD（找不到匯率時保持原值）
+  // 用交易記錄的幣別換算回 TWD。投資的「總成本」= 買進金額 - 賣出金額（淨投入本金）
   const txTotalCost = useCallback((tx) => {
     const amt = parseFloat(tx.amount) || 0;
     const sh = parseFloat(tx.shares);
+    const sign = type === 'investment' && tx.action === 'sell' ? -1 : 1;
     const native = type === 'investment' && !Number.isNaN(sh) && sh > 0 ? amt * sh : amt;
     if (type !== 'investment') return native;
     const ccy = (tx.currency || 'TWD').toUpperCase();
     const rate = fx[ccy] != null ? fx[ccy] : 1;
-    return native * rate;
+    return native * rate * sign;
   }, [type, fx]);
+
+  // 用 ticker 分組計算：各筆已實現損益（賣出列） + 持倉未實現損益
+  // 同一 ticker 跨幣別不合併（理論上同一資產不該換幣別，這裡保持簡單分開處理）
+  const investmentMetrics = (() => {
+    if (type !== 'investment') return null;
+    const groups = new Map(); // key = ticker|currency, value = { buys: [...], sells: [...] }
+    transactions.forEach(t => {
+      const tk = (t.ticker || '').trim().toUpperCase();
+      if (!tk) return;
+      const sh = parseFloat(t.shares);
+      if (Number.isNaN(sh) || sh <= 0) return;
+      const ccy = (t.currency || 'TWD').toUpperCase();
+      const key = `${tk}|${ccy}`;
+      if (!groups.has(key)) groups.set(key, { ticker: tk, ccy, buys: [], sells: [] });
+      const bucket = groups.get(key);
+      const entry = { amount: parseFloat(t.amount) || 0, shares: sh, id: t.id };
+      if (t.action === 'sell') bucket.sells.push(entry);
+      else bucket.buys.push(entry);
+    });
+
+    const perTicker = new Map(); // key → metrics
+    for (const [key, g] of groups) {
+      const totalBuyShares = g.buys.reduce((s, b) => s + b.shares, 0);
+      const totalBuyAmount = g.buys.reduce((s, b) => s + b.amount * b.shares, 0);
+      const avgCost = totalBuyShares > 0 ? totalBuyAmount / totalBuyShares : 0;
+      const totalSellShares = g.sells.reduce((s, b) => s + b.shares, 0);
+      const realizedNative = g.sells.reduce((s, sl) => s + (sl.amount - avgCost) * sl.shares, 0);
+      const openShares = totalBuyShares - totalSellShares;
+      perTicker.set(key, {
+        ticker: g.ticker,
+        currency: g.ccy,
+        avgCost,
+        openShares,
+        realizedNative
+      });
+    }
+
+    let marketValueTwd = 0;
+    let openCostTwd = 0;
+    let realizedTwd = 0;
+    for (const m of perTicker.values()) {
+      const info = prices[m.ticker];
+      const priceCcy = info?.currency ? info.currency.toUpperCase() : m.currency;
+      const livePriceNative = info && !info.error && info.price != null ? info.price : null;
+      const rate = fx[m.currency] != null ? fx[m.currency] : 1;
+      const priceRate = fx[priceCcy] != null ? fx[priceCcy] : 1;
+      const livePriceInCost = livePriceNative != null
+        ? (priceCcy === m.currency ? livePriceNative : livePriceNative * priceRate / rate)
+        : null;
+      if (livePriceInCost != null && m.openShares > 0) {
+        marketValueTwd += livePriceInCost * m.openShares * rate;
+        openCostTwd += m.avgCost * m.openShares * rate;
+      }
+      realizedTwd += m.realizedNative * rate;
+    }
+    const unrealizedTwd = marketValueTwd - openCostTwd;
+    return {
+      perTicker,
+      marketValueTwd,
+      openCostTwd,
+      unrealizedTwd,
+      realizedTwd,
+      totalPnlTwd: unrealizedTwd + realizedTwd
+    };
+  })();
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -100,26 +166,12 @@ export default function TransactionPage({ type, description }) {
     loadData();
   };
 
-  // 全部換算到 TWD
-  let marketValue = 0;
-  let costOfPriced = 0;
-  if (type === 'investment') {
-    transactions.forEach(t => {
-      const tk = (t.ticker || '').trim().toUpperCase();
-      const info = tk && prices[tk] && !prices[tk].error ? prices[tk] : null;
-      const sh = parseFloat(t.shares);
-      if (info && info.price != null && !Number.isNaN(sh) && sh > 0) {
-        const priceCcy = (info.currency || 'TWD').toUpperCase();
-        const costCcy = (t.currency || 'TWD').toUpperCase();
-        const priceRate = fx[priceCcy] != null ? fx[priceCcy] : 1;
-        const costRate = fx[costCcy] != null ? fx[costCcy] : 1;
-        marketValue += info.price * sh * priceRate;
-        costOfPriced += (parseFloat(t.amount) || 0) * sh * costRate;
-      }
-    });
-  }
-  const pnl = marketValue - costOfPriced;
-  const pnlPct = costOfPriced > 0 ? (pnl / costOfPriced) * 100 : 0;
+  const marketValue = investmentMetrics?.marketValueTwd || 0;
+  const realizedPnl = investmentMetrics?.realizedTwd || 0;
+  const unrealizedPnl = investmentMetrics?.unrealizedTwd || 0;
+  const totalPnl = investmentMetrics?.totalPnlTwd || 0;
+  const openCost = investmentMetrics?.openCostTwd || 0;
+  const totalPnlPct = openCost > 0 ? (totalPnl / openCost) * 100 : 0;
 
   return (
     <div>
@@ -153,10 +205,24 @@ export default function TransactionPage({ type, description }) {
                 </div>
               </div>
               <div style={{ textAlign: 'left' }}>
-                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>損益（已估價部分）</div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: pnl >= 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
-                  {pnl >= 0 ? '+' : ''}NT$ {pnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                  <span style={{ fontSize: 14, marginLeft: 8 }}>({pnl >= 0 ? '+' : ''}{pnlPct.toFixed(2)}%)</span>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>未實現損益</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: unrealizedPnl >= 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
+                  {unrealizedPnl >= 0 ? '+' : ''}NT$ {unrealizedPnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </div>
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>已實現損益</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: realizedPnl >= 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
+                  {realizedPnl >= 0 ? '+' : ''}NT$ {realizedPnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </div>
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>總損益</div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: totalPnl >= 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
+                  {totalPnl >= 0 ? '+' : ''}NT$ {totalPnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  {openCost > 0 && (
+                    <span style={{ fontSize: 14, marginLeft: 8 }}>({totalPnl >= 0 ? '+' : ''}{totalPnlPct.toFixed(2)}%)</span>
+                  )}
                 </div>
               </div>
             </>
@@ -183,12 +249,13 @@ export default function TransactionPage({ type, description }) {
                   <tr>
                     <th>日期</th>
                     {type === 'savings' && <th>銀行</th>}
+                    {type === 'investment' && <th>動作</th>}
                     {type === 'investment' && <th>名稱</th>}
                     {type === 'investment' && <th>代號</th>}
                     {type === 'investment' && <th>股數</th>}
                     <th>類別</th>
-                    <th>{type === 'investment' ? '買入價' : '金額'}</th>
-                    {type === 'investment' && <th>總成本</th>}
+                    <th>{type === 'investment' ? '單價' : '金額'}</th>
+                    {type === 'investment' && <th>總額</th>}
                     {type === 'investment' && <th>現價</th>}
                     {type === 'investment' && <th>市值</th>}
                     {type === 'investment' && <th>損益</th>}
@@ -200,28 +267,49 @@ export default function TransactionPage({ type, description }) {
                 <tbody>
                   {transactions.map(t => {
                     const tk = (t.ticker || '').trim().toUpperCase();
+                    const isSell = type === 'investment' && t.action === 'sell';
                     const priceInfo = type === 'investment' && tk ? prices[tk] : null;
                     const livePriceRaw = priceInfo && !priceInfo.error ? priceInfo.price : null;
                     const priceCcy = priceInfo?.currency ? priceInfo.currency.toUpperCase() : 'TWD';
                     const costCcy = (t.currency || 'TWD').toUpperCase();
                     const priceRate = fx[priceCcy] != null ? fx[priceCcy] : 1;
                     const costRate = fx[costCcy] != null ? fx[costCcy] : 1;
-                    // 把現價換算為「成本幣別」以便同幣別比較
                     const livePrice = livePriceRaw != null
                       ? (priceCcy === costCcy ? livePriceRaw : livePriceRaw * priceRate / costRate)
                       : null;
                     const sh = parseFloat(t.shares);
                     const hasShares = !Number.isNaN(sh) && sh > 0;
                     const unitCost = parseFloat(t.amount) || 0;
-                    const rowTotalCost = type === 'investment' && hasShares ? unitCost * sh : unitCost;
-                    const rowMarketValue = livePrice != null && hasShares ? livePrice * sh : null;
-                    const rowPnl = rowMarketValue != null ? rowMarketValue - rowTotalCost : null;
-                    const rowPnlPct = rowPnl != null && rowTotalCost > 0 ? (rowPnl / rowTotalCost) * 100 : null;
+                    const rowGross = type === 'investment' && hasShares ? unitCost * sh : unitCost;
+                    // 買進列：未實現損益 = 現價市值 - 成本
+                    const buyMarketValue = !isSell && livePrice != null && hasShares ? livePrice * sh : null;
+                    const buyPnl = buyMarketValue != null ? buyMarketValue - rowGross : null;
+                    const buyPnlPct = buyPnl != null && rowGross > 0 ? (buyPnl / rowGross) * 100 : null;
+                    // 賣出列：已實現損益 = (賣價 - 該 ticker 平均成本) × 股數
+                    const grpKey = tk ? `${tk}|${costCcy}` : null;
+                    const group = grpKey && investmentMetrics ? investmentMetrics.perTicker.get(grpKey) : null;
+                    const avgCost = group?.avgCost || 0;
+                    const realizedPerRow = isSell && hasShares ? (unitCost - avgCost) * sh : null;
+                    const realizedPct = realizedPerRow != null && avgCost > 0 ? ((unitCost - avgCost) / avgCost) * 100 : null;
+                    const rowPnl = isSell ? realizedPerRow : buyPnl;
+                    const rowPnlPct = isSell ? realizedPct : buyPnlPct;
                     const ccyPrefix = type === 'investment' ? costCcy + ' ' : 'NT$ ';
                     return (
                     <tr key={t.id}>
                       <td>{new Date(t.date).toLocaleDateString('zh-TW')}</td>
                       {type === 'savings' && <td style={{ fontWeight: 600 }}>{t.name || '-'}</td>}
+                      {type === 'investment' && (
+                        <td>
+                          <span className="badge" style={{
+                            background: isSell ? '#dcfce7' : '#fee2e2',
+                            color: isSell ? '#15803d' : '#b91c1c',
+                            border: 'none',
+                            fontWeight: 600
+                          }}>
+                            {isSell ? '賣出' : '買進'}
+                          </span>
+                        </td>
+                      )}
                       {type === 'investment' && <td style={{ fontWeight: 600 }}>{t.name || '-'}</td>}
                       {type === 'investment' && (
                         <td style={{ fontFamily: 'monospace', fontSize: 13 }}>
@@ -246,12 +334,14 @@ export default function TransactionPage({ type, description }) {
                       </td>
                       {type === 'investment' && (
                         <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                          {ccyPrefix}{rowTotalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          {ccyPrefix}{rowGross.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </td>
                       )}
                       {type === 'investment' && (
                         <td style={{ textAlign: 'right' }}>
-                          {priceInfo?.error ? (
+                          {isSell ? (
+                            <span style={{ color: 'var(--color-text-muted)' }}>—</span>
+                          ) : priceInfo?.error ? (
                             <span style={{ color: 'var(--color-danger)', fontSize: 12 }} title={priceInfo.error}>抓取失敗</span>
                           ) : livePrice != null ? (
                             <>{costCcy} {livePrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</>
@@ -264,8 +354,10 @@ export default function TransactionPage({ type, description }) {
                       )}
                       {type === 'investment' && (
                         <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                          {rowMarketValue != null
-                            ? `${ccyPrefix}${rowMarketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                          {isSell ? (
+                            <span style={{ color: 'var(--color-text-muted)' }}>—</span>
+                          ) : buyMarketValue != null
+                            ? `${ccyPrefix}${buyMarketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
                             : <span style={{ color: 'var(--color-text-muted)' }}>-</span>}
                         </td>
                       )}

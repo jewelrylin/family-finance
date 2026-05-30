@@ -25,12 +25,14 @@ router.get('/family', auth, async (req, res) => {
 
     const familyId = user.family_id;
 
-    // 投資類型用 amount × shares 當總成本，其他類型直接用 amount
+    // 投資類型用 amount × shares 當總成本；賣出視為負（本金回流）。其他類型直接用 amount
     const txCost = (t) => {
       const amt = parseFloat(t.amount) || 0;
       if (t.type === 'investment') {
         const sh = parseFloat(t.shares);
-        if (!Number.isNaN(sh) && sh > 0) return amt * sh;
+        const sign = t.action === 'sell' ? -1 : 1;
+        if (!Number.isNaN(sh) && sh > 0) return amt * sh * sign;
+        return amt * sign;
       }
       return amt;
     };
@@ -38,7 +40,7 @@ router.get('/family', auth, async (req, res) => {
     // 個人交易（含 category 欄位用於分類明細）
     const { data: myTransactions } = await supabase
       .from('transactions')
-      .select('type, amount, category, shares')
+      .select('type, amount, category, shares, action')
       .eq('family_id', familyId)
       .eq('user_id', req.user.id);
 

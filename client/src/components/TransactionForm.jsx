@@ -48,6 +48,7 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
   const [ticker, setTicker] = useState(initialData?.ticker || '');
   const [shares, setShares] = useState(initialData?.shares || '');
   const [currency, setCurrency] = useState(initialData?.currency || 'TWD');
+  const [action, setAction] = useState(initialData?.action || 'buy');
   const [amount, setAmount] = useState(initialData?.amount || '');
   const [category, setCategory] = useState(initialData?.category || '');
   const [description, setDescription] = useState(initialData?.description || '');
@@ -125,6 +126,7 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
         ticker: type === 'investment' ? ticker.trim().toUpperCase() : '',
         shares: type === 'investment' && shares !== '' ? parseFloat(shares) : null,
         currency: type === 'investment' ? currency : 'TWD',
+        action: type === 'investment' ? action : 'buy',
         amount: parseFloat(amount),
         category: finalCategory,
         description,
@@ -191,6 +193,30 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
 
             {type === 'investment' && (
               <>
+                <div className="form-group">
+                  <label className="form-label">動作</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {[
+                      { v: 'buy', label: '買進', bg: '#dc2626' },
+                      { v: 'sell', label: '賣出', bg: '#16a34a' }
+                    ].map(o => (
+                      <button
+                        key={o.v}
+                        type="button"
+                        className="btn btn-sm"
+                        style={{
+                          background: action === o.v ? o.bg : 'var(--color-bg)',
+                          color: action === o.v ? '#fff' : 'var(--color-text-secondary)',
+                          border: action === o.v ? 'none' : '1.5px solid var(--color-border)',
+                          minWidth: 80
+                        }}
+                        onClick={() => setAction(o.v)}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="form-group">
                   <label className="form-label">名稱</label>
                   <input
