@@ -1,4 +1,5 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
 const { getClient } = require('../db');
 const auth = require('../middleware/auth');
 
@@ -179,38 +180,109 @@ router.get('/members', auth, async (req, res) => {
   }
 });
 
-// 管理員移除成員
+// 取得操作者並確認為當前家庭管理員
+async function requireFamilyAdmin(supabase, userId) {
+  const { data: me } = await supabase
+    .from('users')
+    .select('family_id, role')
+    .eq('id', userId)
+    .maybeSingle();
+  if (!me?.family_id || me.role !== 'admin') return null;
+  return me;
+}
+
+// 管理員新增成員（建立帳號 + 自動加入該家庭）
+router.post('/members', auth, async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: '請填寫信箱、密碼和姓名' });
+    }
+
+    const supabase = getClient();
+    const admin = await requireFamilyAdmin(supabase, req.user.id);
+    if (!admin) {
+      return res.status(403).json({ error: '只有管理員可以新增成員' });
+    }
+
+    const { data: existing } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle();
+    if (existing) {
+      return res.status(400).json({ error: '此信箱已被註冊' });
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
+    const { data: user, error } = await supabase
+      .from('users')
+      .insert({
+        email,
+        password_hash: hashed,
+        display_name: name,
+        family_id: admin.family_id,
+        role: 'user'
+      })
+      .select('id, email, display_name, role, created_at')
+      .single();
+
+    if (error) {
+      console.error('Add member DB error:', error);
+      return res.status(500).json({ error: '新增成員失敗', detail: error.message });
+    }
+
+    res.status(201).json({
+      member: {
+        id: user.id,
+        email: user.email,
+        name: user.display_name,
+        role: user.role,
+        created_at: user.created_at
+      }
+    });
+  } catch (err) {
+    console.error('Add member error:', err);
+    res.status(500).json({ error: '新增成員失敗' });
+  }
+});
+
+// 管理員刪除成員（完全刪除帳號 + 連動刪除其交易）
 router.delete('/members/:userId', auth, async (req, res) => {
   try {
     const { userId } = req.params;
-
     const supabase = getClient();
 
-    const { data: currentUser } = await supabase
-      .from('users')
-      .select('family_id, role')
-      .eq('id', req.user.id)
-      .maybeSingle();
-
-    if (!currentUser || currentUser.role !== 'admin') {
-      return res.status(403).json({ error: '只有管理員可以移除成員' });
+    const admin = await requireFamilyAdmin(supabase, req.user.id);
+    if (!admin) {
+      return res.status(403).json({ error: '只有管理員可以刪除成員' });
     }
 
     if (String(userId) === String(req.user.id)) {
-      return res.status(400).json({ error: '管理員不能移除自己' });
+      return res.status(400).json({ error: '管理員不能刪除自己' });
     }
 
-    const { error: removeErr } = await supabase
+    // 確認目標確實在管理員的家庭裡
+    const { data: target } = await supabase
       .from('users')
-      .update({ family_id: null, role: 'user' })
+      .select('id, family_id')
       .eq('id', userId)
-      .eq('family_id', currentUser.family_id);
-    if (removeErr) throw removeErr;
+      .maybeSingle();
+    if (!target || String(target.family_id) !== String(admin.family_id)) {
+      return res.status(404).json({ error: '找不到此成員或不在你的家庭' });
+    }
 
-    res.json({ message: '成員已移除' });
+    // 先清交易（FK 沒設 cascade 時也保險）
+    const { error: txErr } = await supabase.from('transactions').delete().eq('user_id', userId);
+    if (txErr) throw txErr;
+
+    const { error: delErr } = await supabase.from('users').delete().eq('id', userId);
+    if (delErr) throw delErr;
+
+    res.json({ message: '成員已刪除' });
   } catch (err) {
-    console.error('Remove member error:', err);
-    res.status(500).json({ error: '移除成員失敗' });
+    console.error('Delete member error:', err);
+    res.status(500).json({ error: '刪除成員失敗', detail: err?.message });
   }
 });
 

@@ -9,8 +9,10 @@ export default function FamilyManagement() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
+  const [showAddMember, setShowAddMember] = useState(false);
   const [newFamilyName, setNewFamilyName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
+  const [newMember, setNewMember] = useState({ email: '', password: '', name: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -69,15 +71,33 @@ export default function FamilyManagement() {
     }
   };
 
-  const handleRemoveMember = async (userId) => {
-    if (!confirm('確定要移除此成員嗎？')) return;
+  const handleRemoveMember = async (userId, name) => {
+    if (!confirm(`確定要刪除「${name}」嗎？\n此操作會連同其所有交易紀錄一併刪除，且無法復原。`)) return;
     try {
       await api.removeMember(userId);
       await loadData();
-      setSuccess('成員已移除');
+      setSuccess('成員已刪除');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const handleAddMember = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      await api.addMember(newMember);
+      setShowAddMember(false);
+      setNewMember({ email: '', password: '', name: '' });
+      await loadData();
+      setSuccess('成員已新增');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -145,7 +165,14 @@ export default function FamilyManagement() {
           </div>
 
           <div className="card">
-            <div className="card-header"><h3>家庭成員 ({members.length})</h3></div>
+            <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3>家庭成員 ({members.length})</h3>
+              {isAdmin && (
+                <button className="btn btn-primary btn-sm" onClick={() => setShowAddMember(true)}>
+                  新增成員
+                </button>
+              )}
+            </div>
             <div className="card-body no-padding">
               <ul className="member-list">
                 {members.map(m => (
@@ -165,7 +192,7 @@ export default function FamilyManagement() {
                         {m.role === 'admin' ? '管理員' : '成員'}
                       </span>
                       {isAdmin && m.id !== user?.id && (
-                        <button className="btn btn-danger btn-sm" onClick={() => handleRemoveMember(m.id)}>移除</button>
+                        <button className="btn btn-danger btn-sm" onClick={() => handleRemoveMember(m.id, m.name)}>刪除</button>
                       )}
                     </div>
                   </li>
@@ -195,6 +222,46 @@ export default function FamilyManagement() {
                 <button type="button" className="btn btn-secondary" onClick={() => setShowCreate(false)}>取消</button>
                 <button type="submit" className="btn btn-primary" disabled={loading}>
                   {loading ? '建立中...' : '建立'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showAddMember && (
+        <div className="modal-overlay" onClick={() => setShowAddMember(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>新增成員</h3>
+              <button className="modal-close" onClick={() => setShowAddMember(false)}>&times;</button>
+            </div>
+            <form onSubmit={handleAddMember}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">姓名</label>
+                  <input type="text" className="form-input" placeholder="例如：小明"
+                    value={newMember.name} onChange={e => setNewMember(s => ({ ...s, name: e.target.value }))} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">信箱</label>
+                  <input type="email" className="form-input" placeholder="example@mail.com"
+                    value={newMember.email} onChange={e => setNewMember(s => ({ ...s, email: e.target.value }))} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">密碼</label>
+                  <input type="text" className="form-input" placeholder="至少 6 字"
+                    value={newMember.password} onChange={e => setNewMember(s => ({ ...s, password: e.target.value }))}
+                    minLength={6} required />
+                  <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
+                    請告訴成員：可用此信箱和密碼登入後自行修改
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowAddMember(false)}>取消</button>
+                <button type="submit" className="btn btn-primary" disabled={loading}>
+                  {loading ? '新增中...' : '新增'}
                 </button>
               </div>
             </form>

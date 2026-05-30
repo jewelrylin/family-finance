@@ -37,6 +37,7 @@ export const api = {
   createFamily: (body) => request('/families', { method: 'POST', body: JSON.stringify(body) }),
   joinFamily: (inviteCode) => request('/families/join', { method: 'POST', body: JSON.stringify({ inviteCode }) }),
   getMembers: () => request('/families/members'),
+  addMember: (body) => request('/families/members', { method: 'POST', body: JSON.stringify(body) }),
   removeMember: (userId) => request(`/families/members/${userId}`, { method: 'DELETE' }),
 
   // Transactions
