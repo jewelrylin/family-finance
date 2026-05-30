@@ -57,7 +57,7 @@ async function fetchAnuefundBatch(tickers) {
       source: 'anuefund',
       price,
       prevClose,
-      currency: '',
+      currency: (it.fundCcyCode || '').toUpperCase(),
       name: it.fundNameLight || '',
       marketState: '',
       ts: Date.now()
