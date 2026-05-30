@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { api } from '../api';
 
 const typeConfig = {
   income: { label: '收入', color: 'var(--color-success)' },
@@ -56,6 +57,10 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
   const [customCategory, setCustomCategory] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [tickerLookup, setTickerLookup] = useState({ status: 'idle', ticker: '' });
+  // 記住我們上次自動填入的名稱字串；如果目前 name 還跟這個一樣，
+  // 表示使用者沒改過 → 可以再覆寫；否則停止覆寫尊重使用者輸入。
+  const [autoFilledName, setAutoFilledName] = useState(initialData?.name || '');
 
   const categories = defaultCategories[type] || [];
 
@@ -64,6 +69,41 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
       setCategory('');
     }
   }, [type]);
+
+  // 輸入代號自動帶入名稱 + 幣別（debounce 400ms）
+  useEffect(() => {
+    if (type !== 'investment') return;
+    const tk = ticker.trim().toUpperCase();
+    if (!tk) { setTickerLookup({ status: 'idle', ticker: '' }); return; }
+
+    let cancelled = false;
+    setTickerLookup({ status: 'loading', ticker: tk });
+    const timer = setTimeout(async () => {
+      try {
+        const { prices } = await api.getPrices([tk]);
+        if (cancelled) return;
+        const info = prices?.[tk];
+        if (!info || info.error || !info.name) {
+          setTickerLookup({ status: 'not_found', ticker: tk });
+          return;
+        }
+        // name 為空 或 跟上次自動填的還一樣 → 允許覆寫；否則尊重使用者已輸入內容
+        if (!name || name === autoFilledName) {
+          setName(info.name);
+          setAutoFilledName(info.name);
+        }
+        // 幣別：使用者還是預設 TWD，且資產實際是非 TWD → 跟著代號預設
+        if (info.currency && info.currency !== 'TWD' && currency === 'TWD') {
+          setCurrency(info.currency);
+        }
+        setTickerLookup({ status: 'ok', ticker: tk, name: info.name });
+      } catch (e) {
+        if (!cancelled) setTickerLookup({ status: 'error', ticker: tk });
+      }
+    }, 400);
+
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [ticker, type]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -172,6 +212,17 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
                       value={ticker}
                       onChange={e => setTicker(e.target.value)}
                     />
+                    {tickerLookup.ticker && (
+                      <div style={{ fontSize: 12, marginTop: 4, color:
+                          tickerLookup.status === 'ok' ? 'var(--color-success)'
+                          : tickerLookup.status === 'not_found' || tickerLookup.status === 'error' ? 'var(--color-danger)'
+                          : 'var(--color-text-muted)' }}>
+                        {tickerLookup.status === 'loading' && '查詢中…'}
+                        {tickerLookup.status === 'ok' && `✓ ${tickerLookup.name}`}
+                        {tickerLookup.status === 'not_found' && '查不到此代號'}
+                        {tickerLookup.status === 'error' && '查詢失敗'}
+                      </div>
+                    )}
                   </div>
                   <div className="form-group">
                     <label className="form-label">股數（選填）</label>
