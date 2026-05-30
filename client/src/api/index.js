@@ -54,9 +54,13 @@ export const api = {
   getAnalysis: () => request('/analysis/family'),
 
   // Prices
-  getPrices: (tickers) => {
+  getPrices: (tickers, fxCurrencies) => {
     const list = (tickers || []).filter(Boolean).join(',');
-    if (!list) return Promise.resolve({ prices: {} });
-    return request(`/prices?tickers=${encodeURIComponent(list)}`);
+    const fx = (fxCurrencies || []).filter(Boolean).join(',');
+    if (!list && !fx) return Promise.resolve({ prices: {}, fx: { TWD: 1 } });
+    const params = new URLSearchParams();
+    if (list) params.set('tickers', list);
+    if (fx) params.set('fx', fx);
+    return request(`/prices?${params.toString()}`);
   }
 };

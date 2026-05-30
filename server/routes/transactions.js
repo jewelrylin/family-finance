@@ -46,7 +46,7 @@ router.get('/', auth, async (req, res) => {
 
 router.post('/', auth, async (req, res) => {
   try {
-    const { family_id, type, amount, category, description, date, recurring, recurring_freq, name, ticker, shares } = req.body;
+    const { family_id, type, amount, category, description, date, recurring, recurring_freq, name, ticker, shares, currency } = req.body;
     const dbType = normalizeType(type);
 
     if (!family_id || !type || !amount) {
@@ -83,7 +83,8 @@ router.post('/', auth, async (req, res) => {
         recurring: !!recurring,
         recurring_freq: recurring ? (recurring_freq || 'monthly') : '',
         ticker: dbType === 'investment' ? (ticker || '').trim().toUpperCase() : '',
-        shares: dbType === 'investment' && shares !== '' && shares != null ? parseFloat(shares) : null
+        shares: dbType === 'investment' && shares !== '' && shares != null ? parseFloat(shares) : null,
+        currency: dbType === 'investment' ? (currency || 'TWD').toUpperCase() : 'TWD'
       })
       .select()
       .single();
@@ -111,7 +112,7 @@ router.post('/', auth, async (req, res) => {
 router.put('/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { amount, category, description, date, type, recurring, recurring_freq, name, ticker, shares } = req.body;
+    const { amount, category, description, date, type, recurring, recurring_freq, name, ticker, shares, currency } = req.body;
 
     const supabase = getClient();
 
@@ -139,6 +140,7 @@ router.put('/:id', auth, async (req, res) => {
     }
     if (ticker !== undefined) updates.ticker = (ticker || '').trim().toUpperCase();
     if (shares !== undefined) updates.shares = shares === '' || shares == null ? null : parseFloat(shares);
+    if (currency !== undefined) updates.currency = (currency || 'TWD').toUpperCase();
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: '沒有要更新的欄位' });

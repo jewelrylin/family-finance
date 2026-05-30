@@ -20,11 +20,23 @@ const freqOptions = [
   { value: 'yearly', label: '每年' }
 ];
 
+const currencyOptions = [
+  { value: 'TWD', label: 'TWD 台幣' },
+  { value: 'USD', label: 'USD 美元' },
+  { value: 'JPY', label: 'JPY 日圓' },
+  { value: 'EUR', label: 'EUR 歐元' },
+  { value: 'CNY', label: 'CNY 人民幣' },
+  { value: 'HKD', label: 'HKD 港幣' },
+  { value: 'GBP', label: 'GBP 英鎊' },
+  { value: 'AUD', label: 'AUD 澳幣' }
+];
+
 export default function TransactionForm({ onSubmit, onClose, initialData, familyId, defaultType }) {
   const [type, setType] = useState(initialData?.type || defaultType || 'expense');
   const [name, setName] = useState(initialData?.name || '');
   const [ticker, setTicker] = useState(initialData?.ticker || '');
   const [shares, setShares] = useState(initialData?.shares || '');
+  const [currency, setCurrency] = useState(initialData?.currency || 'TWD');
   const [amount, setAmount] = useState(initialData?.amount || '');
   const [category, setCategory] = useState(initialData?.category || '');
   const [description, setDescription] = useState(initialData?.description || '');
@@ -62,6 +74,7 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
         name: type === 'investment' ? name.trim() : '',
         ticker: type === 'investment' ? ticker.trim().toUpperCase() : '',
         shares: type === 'investment' && shares !== '' ? parseFloat(shares) : null,
+        currency: type === 'investment' ? currency : 'TWD',
         amount: parseFloat(amount),
         category: finalCategory,
         description,
@@ -145,6 +158,18 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
                       onChange={e => setShares(e.target.value)}
                     />
                   </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">交易幣別</label>
+                  <select
+                    className="form-select"
+                    value={currency}
+                    onChange={e => setCurrency(e.target.value)}
+                  >
+                    {currencyOptions.map(o => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
                 </div>
               </>
             )}

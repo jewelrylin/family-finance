@@ -111,11 +111,43 @@ async function fetchAnueQuotesBatch(tickers) {
   return out;
 }
 
+async function fetchFxToTwdBatch(currencies) {
+  if (!currencies.length) return {};
+  const symbols = currencies.filter(c => c && c !== 'TWD').map(c => `FX:${c}TWD`);
+  if (!symbols.length) return {};
+  const url = `https://ws.api.cnyes.com/ws/api/v1/quote/quotes/${symbols.join(',')}`;
+  const r = await fetch(url, {
+    headers: { 'User-Agent': UA, 'Accept': 'application/json', 'Origin': 'https://www.cnyes.com', 'Referer': 'https://www.cnyes.com/' }
+  });
+  if (!r.ok) throw new Error(`cnyes fx ${r.status}`);
+  const j = await r.json();
+  if (j?.statusCode !== 200 && j?.statusCode !== 4002) throw new Error(`cnyes fx ${j?.statusCode}`);
+  const items = Array.isArray(j?.data) ? j.data : [];
+  const out = {};
+  for (const it of items) {
+    if (!it || typeof it !== 'object') continue;
+    const sym = it['0'];
+    if (!sym) continue;
+    // FX:USDTWD:FOREX → USD
+    const m = sym.match(/^FX:([A-Z]{3})TWD/);
+    if (!m) continue;
+    const rate = typeof it['6'] === 'number' ? it['6'] : null;
+    if (rate == null) continue;
+    out[m[1]] = rate;
+  }
+  return out;
+}
+
+const fxCache = new Map(); // currency -> { rate, ts }
+
 router.get('/', auth, async (req, res) => {
   try {
     const raw = (req.query.tickers || '').toString();
     const tickers = [...new Set(raw.split(',').map(t => t.trim().toUpperCase()).filter(Boolean))];
-    if (!tickers.length) return res.json({ prices: {} });
+    const fxRaw = (req.query.fx || '').toString();
+    const fxList = [...new Set(fxRaw.split(',').map(t => t.trim().toUpperCase()).filter(Boolean))];
+
+    if (!tickers.length && !fxList.length) return res.json({ prices: {}, fx: { TWD: 1 } });
 
     const now = Date.now();
     const result = {};
@@ -166,8 +198,32 @@ router.get('/', auth, async (req, res) => {
       );
     }
 
+    // FX
+    const fx = { TWD: 1 };
+    const fxToFetch = [];
+    for (const c of fxList) {
+      if (c === 'TWD') continue;
+      const cached = fxCache.get(c);
+      if (cached && now - cached.ts < TTL_MS) fx[c] = cached.rate;
+      else fxToFetch.push(c);
+    }
+    if (fxToFetch.length) {
+      tasks.push(
+        fetchFxToTwdBatch(fxToFetch)
+          .then(rates => {
+            for (const c of fxToFetch) {
+              if (rates[c] != null) {
+                fx[c] = rates[c];
+                fxCache.set(c, { rate: rates[c], ts: now });
+              }
+            }
+          })
+          .catch(e => console.error('[prices] fx fetch failed:', e?.message))
+      );
+    }
+
     await Promise.all(tasks);
-    res.json({ prices: result });
+    res.json({ prices: result, fx });
   } catch (err) {
     console.error('Get prices error:', err);
     res.status(500).json({ error: '無法取得股價' });

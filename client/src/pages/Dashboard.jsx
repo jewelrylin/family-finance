@@ -19,6 +19,7 @@ export default function Dashboard() {
   const [transactions, setTransactions] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [summary, setSummary] = useState({ income: 0, expense: 0, investment: 0, savings: 0 });
+  const [fx, setFx] = useState({ TWD: 1 });
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
@@ -28,14 +29,35 @@ export default function Dashboard() {
         api.getMyFamily(),
         api.getTransactions()
       ]);
+      const txs = txData.transactions || [];
       setFamily(familyData.family);
-      setTransactions(txData.transactions || []);
+      setTransactions(txs);
+
+      // 取得投資交易裡用到的非 TWD 幣別匯率
+      const ccys = [...new Set(
+        txs.filter(t => t.type === 'investment')
+          .map(t => (t.currency || 'TWD').toUpperCase())
+          .filter(c => c && c !== 'TWD')
+      )];
+      let fxMap = { TWD: 1 };
+      if (ccys.length) {
+        try {
+          const { fx: fxRates } = await api.getPrices([], ccys);
+          fxMap = { TWD: 1, ...(fxRates || {}) };
+        } catch (e) {
+          console.error('Dashboard FX fetch failed:', e);
+        }
+      }
+      setFx(fxMap);
+
       const s = { income: 0, expense: 0, investment: 0, savings: 0 };
-      (txData.transactions || []).forEach(t => {
+      txs.forEach(t => {
         const amt = parseFloat(t.amount) || 0;
         const sh = parseFloat(t.shares);
-        const value = t.type === 'investment' && !Number.isNaN(sh) && sh > 0 ? amt * sh : amt;
-        s[t.type] = (s[t.type] || 0) + value;
+        const native = t.type === 'investment' && !Number.isNaN(sh) && sh > 0 ? amt * sh : amt;
+        const ccy = (t.currency || 'TWD').toUpperCase();
+        const rate = fxMap[ccy] != null ? fxMap[ccy] : 1;
+        s[t.type] = (s[t.type] || 0) + native * rate;
       });
       setSummary(s);
     } catch (err) {
@@ -129,8 +151,15 @@ export default function Dashboard() {
                         {(() => {
                           const amt = parseFloat(t.amount) || 0;
                           const sh = parseFloat(t.shares);
-                          const v = t.type === 'investment' && !Number.isNaN(sh) && sh > 0 ? amt * sh : amt;
-                          return `${t.type === 'expense' ? '-' : '+'}NT$ ${v.toLocaleString()}`;
+                          const native = t.type === 'investment' && !Number.isNaN(sh) && sh > 0 ? amt * sh : amt;
+                          const ccy = (t.currency || 'TWD').toUpperCase();
+                          const rate = fx[ccy] != null ? fx[ccy] : 1;
+                          const twd = native * rate;
+                          const sign = t.type === 'expense' ? '-' : '+';
+                          const main = `${sign}NT$ ${twd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+                          return ccy !== 'TWD'
+                            ? <>{main}<div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{ccy} {native.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div></>
+                            : main;
                         })()}
                       </td>
                       <td>

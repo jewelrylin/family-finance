@@ -12,16 +12,19 @@ export default function TransactionPage({ type, description }) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [prices, setPrices] = useState({});
+  const [fx, setFx] = useState({ TWD: 1 });
   const [pricesLoading, setPricesLoading] = useState(false);
 
   const loadPrices = useCallback(async (txs) => {
     if (type !== 'investment') return;
     const tickers = [...new Set(txs.map(t => (t.ticker || '').trim().toUpperCase()).filter(Boolean))];
-    if (!tickers.length) { setPrices({}); return; }
+    const currencies = [...new Set(txs.map(t => (t.currency || 'TWD').toUpperCase()).filter(c => c && c !== 'TWD'))];
+    if (!tickers.length && !currencies.length) { setPrices({}); setFx({ TWD: 1 }); return; }
     setPricesLoading(true);
     try {
-      const { prices } = await api.getPrices(tickers);
-      setPrices(prices || {});
+      const data = await api.getPrices(tickers, currencies);
+      setPrices(data.prices || {});
+      setFx({ TWD: 1, ...(data.fx || {}) });
     } catch (err) {
       console.error('Load prices error:', err);
     } finally {
@@ -29,13 +32,16 @@ export default function TransactionPage({ type, description }) {
     }
   }, [type]);
 
+  // 用交易記錄的幣別換算回 TWD（找不到匯率時保持原值）
   const txTotalCost = useCallback((tx) => {
-    if (type === 'investment') {
-      const sh = parseFloat(tx.shares);
-      if (!Number.isNaN(sh) && sh > 0) return (parseFloat(tx.amount) || 0) * sh;
-    }
-    return parseFloat(tx.amount) || 0;
-  }, [type]);
+    const amt = parseFloat(tx.amount) || 0;
+    const sh = parseFloat(tx.shares);
+    const native = type === 'investment' && !Number.isNaN(sh) && sh > 0 ? amt * sh : amt;
+    if (type !== 'investment') return native;
+    const ccy = (tx.currency || 'TWD').toUpperCase();
+    const rate = fx[ccy] != null ? fx[ccy] : 1;
+    return native * rate;
+  }, [type, fx]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -77,16 +83,21 @@ export default function TransactionPage({ type, description }) {
     loadData();
   };
 
+  // 全部換算到 TWD
   let marketValue = 0;
   let costOfPriced = 0;
   if (type === 'investment') {
     transactions.forEach(t => {
       const tk = (t.ticker || '').trim().toUpperCase();
-      const p = tk && prices[tk] && !prices[tk].error ? prices[tk].price : null;
+      const info = tk && prices[tk] && !prices[tk].error ? prices[tk] : null;
       const sh = parseFloat(t.shares);
-      if (p != null && !Number.isNaN(sh) && sh > 0) {
-        marketValue += p * sh;
-        costOfPriced += (parseFloat(t.amount) || 0) * sh;
+      if (info && info.price != null && !Number.isNaN(sh) && sh > 0) {
+        const priceCcy = (info.currency || 'TWD').toUpperCase();
+        const costCcy = (t.currency || 'TWD').toUpperCase();
+        const priceRate = fx[priceCcy] != null ? fx[priceCcy] : 1;
+        const costRate = fx[costCcy] != null ? fx[costCcy] : 1;
+        marketValue += info.price * sh * priceRate;
+        costOfPriced += (parseFloat(t.amount) || 0) * sh * costRate;
       }
     });
   }
@@ -172,7 +183,15 @@ export default function TransactionPage({ type, description }) {
                   {transactions.map(t => {
                     const tk = (t.ticker || '').trim().toUpperCase();
                     const priceInfo = type === 'investment' && tk ? prices[tk] : null;
-                    const livePrice = priceInfo && !priceInfo.error ? priceInfo.price : null;
+                    const livePriceRaw = priceInfo && !priceInfo.error ? priceInfo.price : null;
+                    const priceCcy = priceInfo?.currency ? priceInfo.currency.toUpperCase() : 'TWD';
+                    const costCcy = (t.currency || 'TWD').toUpperCase();
+                    const priceRate = fx[priceCcy] != null ? fx[priceCcy] : 1;
+                    const costRate = fx[costCcy] != null ? fx[costCcy] : 1;
+                    // 把現價換算為「成本幣別」以便同幣別比較
+                    const livePrice = livePriceRaw != null
+                      ? (priceCcy === costCcy ? livePriceRaw : livePriceRaw * priceRate / costRate)
+                      : null;
                     const sh = parseFloat(t.shares);
                     const hasShares = !Number.isNaN(sh) && sh > 0;
                     const unitCost = parseFloat(t.amount) || 0;
@@ -180,6 +199,7 @@ export default function TransactionPage({ type, description }) {
                     const rowMarketValue = livePrice != null && hasShares ? livePrice * sh : null;
                     const rowPnl = rowMarketValue != null ? rowMarketValue - rowTotalCost : null;
                     const rowPnlPct = rowPnl != null && rowTotalCost > 0 ? (rowPnl / rowTotalCost) * 100 : null;
+                    const ccyPrefix = type === 'investment' ? costCcy + ' ' : 'NT$ ';
                     return (
                     <tr key={t.id}>
                       <td>{new Date(t.date).toLocaleDateString('zh-TW')}</td>
@@ -196,11 +216,11 @@ export default function TransactionPage({ type, description }) {
                       )}
                       <td><span className={`badge badge-${t.type}`}>{t.category || '未分類'}</span></td>
                       <td style={{ fontWeight: 600 }}>
-                        {type === 'investment' ? `NT$ ${unitCost.toLocaleString(undefined, { maximumFractionDigits: 4 })}` : `NT$ ${unitCost.toLocaleString()}`}
+                        {ccyPrefix}{unitCost.toLocaleString(undefined, { maximumFractionDigits: type === 'investment' ? 4 : 0 })}
                       </td>
                       {type === 'investment' && (
                         <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                          NT$ {rowTotalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          {ccyPrefix}{rowTotalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </td>
                       )}
                       {type === 'investment' && (
@@ -208,9 +228,7 @@ export default function TransactionPage({ type, description }) {
                           {priceInfo?.error ? (
                             <span style={{ color: 'var(--color-danger)', fontSize: 12 }} title={priceInfo.error}>抓取失敗</span>
                           ) : livePrice != null ? (
-                            <>
-                              {priceInfo.currency || ''} {livePrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                            </>
+                            <>{costCcy} {livePrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</>
                           ) : pricesLoading && tk ? (
                             <span style={{ color: 'var(--color-text-muted)' }}>…</span>
                           ) : (
@@ -220,14 +238,16 @@ export default function TransactionPage({ type, description }) {
                       )}
                       {type === 'investment' && (
                         <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                          {rowMarketValue != null ? rowMarketValue.toLocaleString(undefined, { maximumFractionDigits: 0 }) : <span style={{ color: 'var(--color-text-muted)' }}>-</span>}
+                          {rowMarketValue != null
+                            ? `${ccyPrefix}${rowMarketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                            : <span style={{ color: 'var(--color-text-muted)' }}>-</span>}
                         </td>
                       )}
                       {type === 'investment' && (
                         <td style={{ textAlign: 'right', fontWeight: 600, color: rowPnl == null ? 'var(--color-text-muted)' : rowPnl >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
                           {rowPnl == null ? '-' : (
                             <>
-                              {rowPnl >= 0 ? '+' : ''}{rowPnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                              {rowPnl >= 0 ? '+' : ''}{ccyPrefix}{rowPnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                               {rowPnlPct != null && (
                                 <div style={{ fontSize: 11, fontWeight: 400 }}>
                                   {rowPnl >= 0 ? '+' : ''}{rowPnlPct.toFixed(2)}%
