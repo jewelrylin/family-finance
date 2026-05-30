@@ -9,6 +9,7 @@ import InvestmentPage from './pages/InvestmentPage';
 import SavingsPage from './pages/SavingsPage';
 import FinancialAnalysis from './pages/FinancialAnalysis';
 import FamilyManagement from './pages/FamilyManagement';
+import SysAdminPage from './pages/SysAdminPage';
 import Layout from './components/Layout';
 
 function ProtectedRoute({ children }) {
@@ -42,6 +43,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+      <Route path="/sysadmin" element={<SysAdminPage />} />
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<Dashboard />} />
         <Route path="income" element={<IncomePage />} />

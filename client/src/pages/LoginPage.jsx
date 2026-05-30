@@ -60,6 +60,9 @@ export default function LoginPage() {
         <p style={{ textAlign: 'center', marginTop: 20, fontSize: 14, color: 'var(--color-text-secondary)' }}>
           還沒有帳號？<Link to="/register" style={{ color: 'var(--color-primary)', fontWeight: 600, textDecoration: 'none' }}>註冊</Link>
         </p>
+        <p style={{ textAlign: 'center', marginTop: 12, fontSize: 12 }}>
+          <Link to="/sysadmin" style={{ color: 'var(--color-text-muted)', textDecoration: 'none' }}>系統管理</Link>
+        </p>
       </div>
     </div>
   );

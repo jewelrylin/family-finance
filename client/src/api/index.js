@@ -4,16 +4,21 @@ function getToken() {
   return localStorage.getItem('token');
 }
 
+function getSysadminToken() {
+  return sessionStorage.getItem('sysadminToken');
+}
+
 async function request(endpoint, options = {}) {
-  const token = getToken();
+  const { auth = 'user', ...rest } = options;
+  const token = auth === 'sysadmin' ? getSysadminToken() : getToken();
   const headers = {
     'Content-Type': 'application/json',
     ...(token && { Authorization: `Bearer ${token}` }),
-    ...options.headers
+    ...rest.headers
   };
 
   const res = await fetch(`${API_URL}/api${endpoint}`, {
-    ...options,
+    ...rest,
     headers
   });
 
@@ -92,7 +97,28 @@ export const api = {
   clearPriceCache: () => {
     priceCache.prices = {};
     priceCache.fx = {};
-  }
+  },
+
+  // 系統管理（用 master secret 登入，token 存 sessionStorage）
+  sysadminLogin: async (secret) => {
+    const data = await request('/sysadmin/auth', {
+      method: 'POST',
+      body: JSON.stringify({ secret })
+    });
+    sessionStorage.setItem('sysadminToken', data.token);
+    return data;
+  },
+  sysadminLogout: () => sessionStorage.removeItem('sysadminToken'),
+  sysadminHasToken: () => !!sessionStorage.getItem('sysadminToken'),
+  sysadminListUsers: () => request('/sysadmin/users', { auth: 'sysadmin' }),
+  sysadminResetPassword: (userId, newPassword) =>
+    request(`/sysadmin/users/${userId}/reset-password`, {
+      method: 'POST',
+      auth: 'sysadmin',
+      body: JSON.stringify({ newPassword })
+    }),
+  sysadminDeleteUser: (userId) =>
+    request(`/sysadmin/users/${userId}`, { method: 'DELETE', auth: 'sysadmin' })
 };
 
 const priceCache = { prices: {}, fx: {} };
