@@ -53,14 +53,52 @@ export const api = {
   // Analysis
   getAnalysis: () => request('/analysis/family'),
 
-  // Prices
+  // Prices — session 級快取：登入後第一次抓，之後整段 session 重用，
+  // 切頁面 / 新增刪除交易都不會再打 API；瀏覽器重新整理或登出才重抓。
   getPrices: (tickers, fxCurrencies) => {
-    const list = (tickers || []).filter(Boolean).join(',');
-    const fx = (fxCurrencies || []).filter(Boolean).join(',');
-    if (!list && !fx) return Promise.resolve({ prices: {}, fx: { TWD: 1 } });
+    const wantTickers = [...new Set((tickers || []).filter(Boolean).map(s => String(s).toUpperCase()))];
+    const wantFx = [...new Set((fxCurrencies || []).filter(Boolean).map(s => String(s).toUpperCase()))]
+      .filter(c => c !== 'TWD');
+
+    const cachedPrices = {};
+    const missingTickers = [];
+    for (const t of wantTickers) {
+      if (priceCache.prices[t]) cachedPrices[t] = priceCache.prices[t];
+      else missingTickers.push(t);
+    }
+    const missingFx = wantFx.filter(c => priceCache.fx[c] == null);
+
+    if (!missingTickers.length && !missingFx.length) {
+      return Promise.resolve({
+        prices: cachedPrices,
+        fx: { TWD: 1, ...pickKeys(priceCache.fx, wantFx) }
+      });
+    }
+
     const params = new URLSearchParams();
-    if (list) params.set('tickers', list);
-    if (fx) params.set('fx', fx);
-    return request(`/prices?${params.toString()}`);
+    if (missingTickers.length) params.set('tickers', missingTickers.join(','));
+    if (missingFx.length) params.set('fx', missingFx.join(','));
+
+    return request(`/prices?${params.toString()}`).then(data => {
+      Object.assign(priceCache.prices, data.prices || {});
+      Object.assign(priceCache.fx, data.fx || {});
+      return {
+        prices: { ...cachedPrices, ...(data.prices || {}) },
+        fx: { TWD: 1, ...pickKeys(priceCache.fx, wantFx) }
+      };
+    });
+  },
+
+  clearPriceCache: () => {
+    priceCache.prices = {};
+    priceCache.fx = {};
   }
 };
+
+const priceCache = { prices: {}, fx: {} };
+
+function pickKeys(obj, keys) {
+  const out = {};
+  for (const k of keys) if (obj[k] != null) out[k] = obj[k];
+  return out;
+}
