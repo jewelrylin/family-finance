@@ -1,6 +1,7 @@
 const express = require('express');
 const { getClient } = require('../db');
 const auth = require('../middleware/auth');
+const { encryptTransactionFields, decryptTransactionFields } = require('../crypto');
 
 const router = express.Router();
 
@@ -29,13 +30,16 @@ router.get('/', auth, async (req, res) => {
     const { data, error } = await query;
     if (error) throw error;
 
-    // 把 deposit 映射回 savings 給前端
-    const transactions = (data || []).map(t => ({
-      ...t,
-      type: t.type === 'deposit' ? 'savings' : t.type,
-      description: t.note || '',
-      note: undefined
-    }));
+    // 把 deposit 映射回 savings 給前端、敏感欄位解密
+    const transactions = (data || []).map(row => {
+      const t = decryptTransactionFields(row);
+      return {
+        ...t,
+        type: t.type === 'deposit' ? 'savings' : t.type,
+        description: t.note || '',
+        note: undefined
+      };
+    });
 
     res.json({ transactions });
   } catch (err) {
@@ -69,24 +73,26 @@ router.post('/', auth, async (req, res) => {
       return res.status(403).json({ error: '你不是此家庭的成員' });
     }
 
+    const insertRow = encryptTransactionFields({
+      user_id: req.user.id,
+      family_id,
+      type: dbType,
+      name: name || '',
+      amount: parseFloat(amount),
+      category: category || '',
+      note: description || '',
+      date: date || new Date().toISOString().split('T')[0],
+      recurring: !!recurring,
+      recurring_freq: recurring ? (recurring_freq || 'monthly') : '',
+      ticker: dbType === 'investment' ? (ticker || '').trim().toUpperCase() : '',
+      shares: dbType === 'investment' && shares !== '' && shares != null ? parseFloat(shares) : null,
+      currency: dbType === 'investment' ? (currency || 'TWD').toUpperCase() : 'TWD',
+      action: dbType === 'investment' ? (action === 'sell' ? 'sell' : 'buy') : 'buy'
+    });
+
     const { data: transaction, error } = await supabase
       .from('transactions')
-      .insert({
-        user_id: req.user.id,
-        family_id,
-        type: dbType,
-        name: name || '',
-        amount: parseFloat(amount),
-        category: category || '',
-        note: description || '',
-        date: date || new Date().toISOString().split('T')[0],
-        recurring: !!recurring,
-        recurring_freq: recurring ? (recurring_freq || 'monthly') : '',
-        ticker: dbType === 'investment' ? (ticker || '').trim().toUpperCase() : '',
-        shares: dbType === 'investment' && shares !== '' && shares != null ? parseFloat(shares) : null,
-        currency: dbType === 'investment' ? (currency || 'TWD').toUpperCase() : 'TWD',
-        action: dbType === 'investment' ? (action === 'sell' ? 'sell' : 'buy') : 'buy'
-      })
+      .insert(insertRow)
       .select()
       .single();
 
@@ -97,11 +103,12 @@ router.post('/', auth, async (req, res) => {
       throw error;
     }
 
+    const decTx = decryptTransactionFields(transaction);
     res.status(201).json({
       transaction: {
-        ...transaction,
-        type: transaction.type === 'deposit' ? 'savings' : transaction.type,
-        description: transaction.note || ''
+        ...decTx,
+        type: decTx.type === 'deposit' ? 'savings' : decTx.type,
+        description: decTx.note || ''
       }
     });
   } catch (err) {
@@ -148,9 +155,11 @@ router.put('/:id', auth, async (req, res) => {
       return res.status(400).json({ error: '沒有要更新的欄位' });
     }
 
+    const encryptedUpdates = encryptTransactionFields(updates);
+
     const { data: updated, error } = await supabase
       .from('transactions')
-      .update(updates)
+      .update(encryptedUpdates)
       .eq('id', id)
       .eq('user_id', req.user.id)
       .select()
@@ -158,11 +167,12 @@ router.put('/:id', auth, async (req, res) => {
 
     if (error) throw error;
 
+    const decUpdated = decryptTransactionFields(updated);
     res.json({
       transaction: {
-        ...updated,
-        type: updated.type === 'deposit' ? 'savings' : updated.type,
-        description: updated.note || ''
+        ...decUpdated,
+        type: decUpdated.type === 'deposit' ? 'savings' : decUpdated.type,
+        description: decUpdated.note || ''
       }
     });
   } catch (err) {

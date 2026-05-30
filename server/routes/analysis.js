@@ -1,6 +1,7 @@
 const express = require('express');
 const { getClient } = require('../db');
 const auth = require('../middleware/auth');
+const { decrypt } = require('../crypto');
 
 const router = express.Router();
 
@@ -50,7 +51,7 @@ router.get('/family', auth, async (req, res) => {
       const type = t.type === 'deposit' ? 'savings' : t.type;
       const value = txCost(t);
       mySummary[type] = (mySummary[type] || 0) + value;
-      const cat = t.category || '未分類';
+      const cat = decrypt(t.category) || '未分類';
       myCategories[type][cat] = (myCategories[type][cat] || 0) + value;
     });
     mySummary.total = mySummary.income - mySummary.expense + mySummary.investment + mySummary.savings;
@@ -67,7 +68,7 @@ router.get('/family', auth, async (req, res) => {
       const type = t.type === 'deposit' ? 'savings' : t.type;
       const value = txCost(t);
       familySummary[type] = (familySummary[type] || 0) + value;
-      const cat = t.category || '未分類';
+      const cat = decrypt(t.category) || '未分類';
       familyCategories[type][cat] = (familyCategories[type][cat] || 0) + value;
     });
     familySummary.total = familySummary.income - familySummary.expense + familySummary.investment + familySummary.savings;
