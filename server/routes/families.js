@@ -4,6 +4,19 @@ const auth = require('../middleware/auth');
 
 const router = express.Router();
 
+// 更新使用者欄位並確認真的有寫入到 row，避免 RLS / FK 等錯誤被靜默吞掉
+async function updateUser(supabase, userId, updates) {
+  const { data, error } = await supabase
+    .from('users')
+    .update(updates)
+    .eq('id', userId)
+    .select('id')
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('user_not_updated');
+  return data;
+}
+
 // 取得用戶的家庭資訊
 router.get('/mine', auth, async (req, res) => {
   try {
@@ -64,10 +77,12 @@ router.post('/', auth, async (req, res) => {
       return res.status(500).json({ error: '建立家庭失敗，請確認資料庫權限設定' });
     }
 
-    await supabase
-      .from('users')
-      .update({ family_id: family.id, role: 'admin' })
-      .eq('id', req.user.id);
+    try {
+      await updateUser(supabase, req.user.id, { family_id: family.id, role: 'admin' });
+    } catch (e) {
+      console.error('Create family: user update failed:', e?.message || e);
+      return res.status(500).json({ error: '建立家庭後無法綁定使用者，請確認 Supabase users 表權限', detail: e?.message });
+    }
 
     res.status(201).json({ family: { ...family, role: 'admin' } });
   } catch (err) {
@@ -111,10 +126,12 @@ router.post('/join', auth, async (req, res) => {
       return res.status(400).json({ error: '你已經在一個家庭中' });
     }
 
-    await supabase
-      .from('users')
-      .update({ family_id: family.id, role: 'member' })
-      .eq('id', req.user.id);
+    try {
+      await updateUser(supabase, req.user.id, { family_id: family.id, role: 'member' });
+    } catch (e) {
+      console.error('Join family: user update failed:', e?.message || e);
+      return res.status(500).json({ error: '加入家庭失敗，使用者資料無法更新', detail: e?.message });
+    }
 
     res.json({ family: { ...family, role: 'member' } });
   } catch (err) {
@@ -183,11 +200,12 @@ router.delete('/members/:userId', auth, async (req, res) => {
       return res.status(400).json({ error: '管理員不能移除自己' });
     }
 
-    await supabase
+    const { error: removeErr } = await supabase
       .from('users')
       .update({ family_id: null, role: 'user' })
       .eq('id', userId)
       .eq('family_id', currentUser.family_id);
+    if (removeErr) throw removeErr;
 
     res.json({ message: '成員已移除' });
   } catch (err) {
