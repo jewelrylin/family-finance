@@ -4,6 +4,16 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 
 const COLORS = { income: '#10b981', expense: '#ef4444', investment: '#3b82f6', savings: '#8b5cf6' };
 
+// 投資類別專屬顏色（跟投資頁徽章一致）
+const INVESTMENT_CATEGORY_COLORS = {
+  '股票': '#1d4ed8',
+  '基金': '#6d28d9',
+  '債券': '#15803d',
+  '房地產': '#b45309',
+  '加密貨幣': '#b91c1c',
+  '其他投資': '#475569'
+};
+
 export default function FinancialAnalysis() {
   const [analysis, setAnalysis] = useState(null);
   const [family, setFamily] = useState(null);
@@ -173,15 +183,26 @@ export default function FinancialAnalysis() {
                           <tr><th>類別</th><th>金額</th><th>佔比</th></tr>
                         </thead>
                         <tbody>
-                          {items.map(item => (
-                            <tr key={item.name}>
-                              <td>{item.name}</td>
-                              <td style={{ fontWeight: 600 }}>NT$ {item.value.toLocaleString()}</td>
-                              <td style={{ color: 'var(--color-text-secondary)' }}>
-                                {typeTotal > 0 ? (item.value / typeTotal * 100).toFixed(1) : 0}%
-                              </td>
-                            </tr>
-                          ))}
+                          {items.map(item => {
+                            const dot = type === 'investment' ? (INVESTMENT_CATEGORY_COLORS[item.name] || '#94a3b8') : null;
+                            return (
+                              <tr key={item.name}>
+                                <td>
+                                  {dot && (
+                                    <span style={{
+                                      display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                                      background: dot, marginRight: 8, verticalAlign: 'middle'
+                                    }} />
+                                  )}
+                                  {item.name}
+                                </td>
+                                <td style={{ fontWeight: 600 }}>NT$ {item.value.toLocaleString()}</td>
+                                <td style={{ color: 'var(--color-text-secondary)' }}>
+                                  {typeTotal > 0 ? (item.value / typeTotal * 100).toFixed(1) : 0}%
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

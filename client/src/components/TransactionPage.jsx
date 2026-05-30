@@ -4,6 +4,23 @@ import TransactionForm from './TransactionForm';
 
 const typeLabels = { income: '收入', expense: '支出', investment: '投資', savings: '存款' };
 
+// 各投資類別專屬色票（背景 / 文字）
+const investmentCategoryColors = {
+  '股票':    { bg: '#dbeafe', fg: '#1d4ed8' }, // 藍
+  '基金':    { bg: '#ede9fe', fg: '#6d28d9' }, // 紫
+  '債券':    { bg: '#dcfce7', fg: '#15803d' }, // 綠
+  '房地產':  { bg: '#fef3c7', fg: '#b45309' }, // 琥珀
+  '加密貨幣':{ bg: '#fee2e2', fg: '#b91c1c' }, // 紅
+  '其他投資':{ bg: '#f1f5f9', fg: '#475569' }  // 灰
+};
+const defaultBadge = { bg: '#f1f5f9', fg: '#475569' };
+
+function categoryBadgeStyle(type, category) {
+  if (type !== 'investment') return null;
+  const c = investmentCategoryColors[category] || defaultBadge;
+  return { background: c.bg, color: c.fg, border: 'none' };
+}
+
 export default function TransactionPage({ type, description }) {
   const [family, setFamily] = useState(null);
   const [transactions, setTransactions] = useState([]);
@@ -216,7 +233,14 @@ export default function TransactionPage({ type, description }) {
                           {hasShares ? sh.toLocaleString(undefined, { maximumFractionDigits: 4 }) : <span style={{ color: 'var(--color-text-muted)' }}>-</span>}
                         </td>
                       )}
-                      <td><span className={`badge badge-${t.type}`}>{t.category || '未分類'}</span></td>
+                      <td>
+                        <span
+                          className={`badge badge-${t.type}`}
+                          style={categoryBadgeStyle(t.type, t.category) || undefined}
+                        >
+                          {t.category || '未分類'}
+                        </span>
+                      </td>
                       <td style={{ fontWeight: 600 }}>
                         {ccyPrefix}{unitCost.toLocaleString(undefined, { maximumFractionDigits: type === 'investment' ? 4 : 0 })}
                       </td>
