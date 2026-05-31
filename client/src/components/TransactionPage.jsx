@@ -32,6 +32,7 @@ export default function TransactionPage({ type, description }) {
   const [fx, setFx] = useState({ TWD: 1 });
   const [pricesLoading, setPricesLoading] = useState(false);
   const [bankFilter, setBankFilter] = useState(null); // 存款分類：點哪家銀行就只看那家
+  const [bankRelatedTxs, setBankRelatedTxs] = useState([]); // 存款頁用：含收入、支出，用來算每家銀行真實餘額
 
   const loadPrices = useCallback(async (txs) => {
     if (type !== 'investment') return;
@@ -130,16 +131,21 @@ export default function TransactionPage({ type, description }) {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
+      // 存款頁要看「真實餘額」必須含收入/支出 → 不帶 type filter 一次抓全部
+      const params = type === 'savings' ? {} : { type };
       const [familyData, txData] = await Promise.all([
         api.getMyFamily(),
-        api.getTransactions({ type })
+        api.getTransactions(params)
       ]);
       setFamily(familyData.family);
-      const txs = txData.transactions || [];
-      setTransactions(txs);
-      const t = txs.reduce((sum, tx) => sum + txTotalCost(tx), 0);
+      const allTxs = txData.transactions || [];
+      const ownType = type === 'savings' ? allTxs.filter(t => t.type === 'savings') : allTxs;
+      setTransactions(ownType);
+      // 銀行匯總用：所有非投資的交易（投資的 name 是資產不是帳戶）
+      setBankRelatedTxs(type === 'savings' ? allTxs.filter(t => t.type !== 'investment') : []);
+      const t = ownType.reduce((sum, tx) => sum + txTotalCost(tx), 0);
       setTotal(t);
-      loadPrices(txs);
+      loadPrices(ownType);
     } catch (err) {
       console.error('Load data error:', err);
     } finally {
@@ -167,18 +173,20 @@ export default function TransactionPage({ type, description }) {
     loadData();
   };
 
-  // 存款：依銀行匯總（讓使用者點開對帳）
+  // 存款：依銀行匯總「真實餘額」（含收入/支出影響）
   const bankSummary = (() => {
     if (type !== 'savings') return null;
     const m = new Map();
-    for (const t of transactions) {
+    for (const t of bankRelatedTxs) {
       const bank = t.name || '未指定';
-      const cur = m.get(bank) || { bank, total: 0, count: 0 };
-      cur.total += parseFloat(t.amount) || 0;
-      cur.count += 1;
+      const amt = parseFloat(t.amount) || 0;
+      const cur = m.get(bank) || { bank, balance: 0, savings: 0, income: 0, expense: 0, savingsCount: 0 };
+      if (t.type === 'income') { cur.income += amt; cur.balance += amt; }
+      else if (t.type === 'expense') { cur.expense += amt; cur.balance -= amt; }
+      else if (t.type === 'savings') { cur.savings += amt; cur.balance += amt; cur.savingsCount += 1; }
       m.set(bank, cur);
     }
-    return [...m.values()].sort((a, b) => b.total - a.total);
+    return [...m.values()].sort((a, b) => b.balance - a.balance);
   })();
 
   const visibleTransactions = type === 'savings' && bankFilter
@@ -268,13 +276,14 @@ export default function TransactionPage({ type, description }) {
           <div className="card-body" style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
             {bankSummary.map(b => {
               const isActive = bankFilter === b.bank;
+              const balanceColor = b.balance < 0 ? 'var(--color-danger)' : isActive ? '#fff' : 'inherit';
               return (
                 <button
                   key={b.bank}
                   type="button"
                   onClick={() => setBankFilter(isActive ? null : b.bank)}
                   style={{
-                    flex: '0 1 180px',
+                    flex: '0 1 200px',
                     textAlign: 'left',
                     padding: '12px 16px',
                     background: isActive ? 'var(--color-primary)' : 'var(--color-bg)',
@@ -285,21 +294,34 @@ export default function TransactionPage({ type, description }) {
                   }}
                 >
                   <div style={{ fontSize: 13, opacity: 0.85 }}>{b.bank}</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, marginTop: 2 }}>
-                    NT$ {b.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  <div style={{ fontSize: 18, fontWeight: 700, marginTop: 2, color: balanceColor }}>
+                    NT$ {b.balance.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </div>
-                  <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
-                    {b.count} 筆
+                  <div style={{ fontSize: 11, opacity: 0.75, marginTop: 4, lineHeight: 1.5 }}>
+                    存款 {b.savings.toLocaleString()}
+                    {b.income > 0 && <> · 收入 +{b.income.toLocaleString()}</>}
+                    {b.expense > 0 && <> · 支出 −{b.expense.toLocaleString()}</>}
                   </div>
                 </button>
               );
             })}
           </div>
-          {bankFilter && filteredSubtotal != null && (
-            <div style={{ padding: '12px 24px', borderTop: '1px solid var(--color-border)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
-              {bankFilter}：{visibleTransactions.length} 筆，小計 <strong style={{ color: 'var(--color-success)' }}>NT$ {filteredSubtotal.toLocaleString()}</strong>
-            </div>
-          )}
+          {bankFilter && filteredSubtotal != null && (() => {
+            const b = bankSummary.find(x => x.bank === bankFilter);
+            return (
+              <div style={{ padding: '12px 24px', borderTop: '1px solid var(--color-border)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                {bankFilter}：列表顯示 {visibleTransactions.length} 筆存款，小計 <strong>NT$ {filteredSubtotal.toLocaleString()}</strong>
+                {b && (b.income > 0 || b.expense > 0) && (
+                  <>
+                    {' '}＋ 收入 NT$ {b.income.toLocaleString()} − 支出 NT$ {b.expense.toLocaleString()} ＝ 餘額{' '}
+                    <strong style={{ color: b.balance < 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
+                      NT$ {b.balance.toLocaleString()}
+                    </strong>
+                  </>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
