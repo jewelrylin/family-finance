@@ -249,6 +249,7 @@ export default function TransactionPage({ type, description }) {
                   <tr>
                     <th>日期</th>
                     {type === 'savings' && <th>銀行</th>}
+                    {(type === 'income' || type === 'expense') && <th>帳戶</th>}
                     {type === 'investment' && <th>動作</th>}
                     {type === 'investment' && <th>名稱</th>}
                     {type === 'investment' && <th>代號</th>}
@@ -298,6 +299,7 @@ export default function TransactionPage({ type, description }) {
                     <tr key={t.id}>
                       <td>{new Date(t.date).toLocaleDateString('zh-TW')}</td>
                       {type === 'savings' && <td style={{ fontWeight: 600 }}>{t.name || '-'}</td>}
+                      {(type === 'income' || type === 'expense') && <td style={{ fontWeight: 600 }}>{t.name || '-'}</td>}
                       {type === 'investment' && (
                         <td>
                           <span className="badge" style={{

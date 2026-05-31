@@ -22,6 +22,7 @@ const freqOptions = [
 ];
 
 const bankOptions = [
+  '現金',
   '台灣銀行', '土地銀行', '合作金庫', '第一銀行', '華南銀行', '彰化銀行',
   '上海商銀', '台北富邦', '國泰世華', '高雄銀行', '兆豐銀行', '花旗銀行',
   '王道銀行', '臺灣企銀', '渣打銀行', '台中商銀', '匯豐銀行', '華泰銀行',
@@ -122,7 +123,7 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
       await onSubmit({
         family_id: familyId,
         type,
-        name: (type === 'investment' || type === 'savings') ? name.trim() : '',
+        name: name.trim(),
         ticker: type === 'investment' ? ticker.trim().toUpperCase() : '',
         shares: type === 'investment' && shares !== '' ? parseFloat(shares) : null,
         currency: type === 'investment' ? currency : 'TWD',
@@ -174,16 +175,18 @@ export default function TransactionForm({ onSubmit, onClose, initialData, family
               </div>
             </div>
 
-            {type === 'savings' && (
+            {(type === 'savings' || type === 'income' || type === 'expense') && (
               <div className="form-group">
-                <label className="form-label">銀行</label>
+                <label className="form-label">
+                  {type === 'savings' ? '銀行' : '帳戶'}
+                </label>
                 <select
                   className="form-select"
                   value={name}
                   onChange={e => setName(e.target.value)}
                   required
                 >
-                  <option value="">選擇銀行</option>
+                  <option value="">{type === 'savings' ? '選擇銀行' : '選擇帳戶'}</option>
                   {bankOptions.map(b => (
                     <option key={b} value={b}>{b}</option>
                   ))}
