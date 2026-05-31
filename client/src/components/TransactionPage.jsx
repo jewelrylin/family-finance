@@ -31,6 +31,7 @@ export default function TransactionPage({ type, description }) {
   const [prices, setPrices] = useState({});
   const [fx, setFx] = useState({ TWD: 1 });
   const [pricesLoading, setPricesLoading] = useState(false);
+  const [bankFilter, setBankFilter] = useState(null); // 存款分類：點哪家銀行就只看那家
 
   const loadPrices = useCallback(async (txs) => {
     if (type !== 'investment') return;
@@ -166,6 +167,27 @@ export default function TransactionPage({ type, description }) {
     loadData();
   };
 
+  // 存款：依銀行匯總（讓使用者點開對帳）
+  const bankSummary = (() => {
+    if (type !== 'savings') return null;
+    const m = new Map();
+    for (const t of transactions) {
+      const bank = t.name || '未指定';
+      const cur = m.get(bank) || { bank, total: 0, count: 0 };
+      cur.total += parseFloat(t.amount) || 0;
+      cur.count += 1;
+      m.set(bank, cur);
+    }
+    return [...m.values()].sort((a, b) => b.total - a.total);
+  })();
+
+  const visibleTransactions = type === 'savings' && bankFilter
+    ? transactions.filter(t => (t.name || '未指定') === bankFilter)
+    : transactions;
+  const filteredSubtotal = type === 'savings' && bankFilter
+    ? visibleTransactions.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0)
+    : null;
+
   const marketValue = investmentMetrics?.marketValueTwd || 0;
   const realizedPnl = investmentMetrics?.realizedTwd || 0;
   const unrealizedPnl = investmentMetrics?.unrealizedTwd || 0;
@@ -233,6 +255,54 @@ export default function TransactionPage({ type, description }) {
         </button>
       </div>
 
+      {type === 'savings' && bankSummary && bankSummary.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h3>依銀行匯總</h3>
+            {bankFilter && (
+              <button className="btn btn-secondary btn-sm" onClick={() => setBankFilter(null)}>
+                顯示全部
+              </button>
+            )}
+          </div>
+          <div className="card-body" style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+            {bankSummary.map(b => {
+              const isActive = bankFilter === b.bank;
+              return (
+                <button
+                  key={b.bank}
+                  type="button"
+                  onClick={() => setBankFilter(isActive ? null : b.bank)}
+                  style={{
+                    flex: '0 1 180px',
+                    textAlign: 'left',
+                    padding: '12px 16px',
+                    background: isActive ? 'var(--color-primary)' : 'var(--color-bg)',
+                    color: isActive ? '#fff' : 'inherit',
+                    border: '1.5px solid ' + (isActive ? 'var(--color-primary)' : 'var(--color-border)'),
+                    borderRadius: 8,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{ fontSize: 13, opacity: 0.85 }}>{b.bank}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, marginTop: 2 }}>
+                    NT$ {b.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </div>
+                  <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>
+                    {b.count} 筆
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          {bankFilter && filteredSubtotal != null && (
+            <div style={{ padding: '12px 24px', borderTop: '1px solid var(--color-border)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+              {bankFilter}：{visibleTransactions.length} 筆，小計 <strong style={{ color: 'var(--color-success)' }}>NT$ {filteredSubtotal.toLocaleString()}</strong>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="card">
         <div className="card-body no-padding">
           {!family ? (
@@ -266,7 +336,7 @@ export default function TransactionPage({ type, description }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {transactions.map(t => {
+                  {visibleTransactions.map(t => {
                     const tk = (t.ticker || '').trim().toUpperCase();
                     const isSell = type === 'investment' && t.action === 'sell';
                     const priceInfo = type === 'investment' && tk ? prices[tk] : null;
