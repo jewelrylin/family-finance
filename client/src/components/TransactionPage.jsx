@@ -33,6 +33,7 @@ export default function TransactionPage({ type, description }) {
   const [pricesLoading, setPricesLoading] = useState(false);
   const [bankFilter, setBankFilter] = useState(null); // 存款分類：點哪家銀行就只看那家
   const [bankRelatedTxs, setBankRelatedTxs] = useState([]); // 存款頁用：含收入、支出，用來算每家銀行真實餘額
+  const [monthFilter, setMonthFilter] = useState(''); // 'YYYY-MM' 或 '' = 全部月份
 
   const loadPrices = useCallback(async (txs) => {
     if (type !== 'investment') return;
@@ -189,12 +190,23 @@ export default function TransactionPage({ type, description }) {
     return [...m.values()].sort((a, b) => b.balance - a.balance);
   })();
 
-  const visibleTransactions = type === 'savings' && bankFilter
-    ? transactions.filter(t => (t.name || '未指定') === bankFilter)
-    : transactions;
-  const filteredSubtotal = type === 'savings' && bankFilter
-    ? visibleTransactions.reduce((s, t) => s + (parseFloat(t.amount) || 0), 0)
+  const txMonth = (t) => (t.date ? String(t.date).slice(0, 7) : '');
+  const monthOptions = type === 'savings'
+    ? [...new Set(bankRelatedTxs.map(txMonth).filter(Boolean))].sort().reverse()
+    : [];
+
+  // 銀行明細：點銀行後顯示所有相關交易（收入 / 支出 / 存款）
+  const bankDetail = (type === 'savings' && bankFilter)
+    ? bankRelatedTxs
+        .filter(t => (t.name || '未指定') === bankFilter)
+        .filter(t => !monthFilter || txMonth(t) === monthFilter)
     : null;
+
+  // 沒選銀行時表格走原本邏輯（只看 savings 類型）
+  const visibleTransactions = type === 'savings' && bankFilter
+    ? []
+    : transactions;
+  const filteredSubtotal = null;
 
   const marketValue = investmentMetrics?.marketValueTwd || 0;
   const realizedPnl = investmentMetrics?.realizedTwd || 0;
@@ -268,7 +280,7 @@ export default function TransactionPage({ type, description }) {
           <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h3>依銀行匯總</h3>
             {bankFilter && (
-              <button className="btn btn-secondary btn-sm" onClick={() => setBankFilter(null)}>
+              <button className="btn btn-secondary btn-sm" onClick={() => { setBankFilter(null); setMonthFilter(''); }}>
                 顯示全部
               </button>
             )}
@@ -306,25 +318,97 @@ export default function TransactionPage({ type, description }) {
               );
             })}
           </div>
-          {bankFilter && filteredSubtotal != null && (() => {
-            const b = bankSummary.find(x => x.bank === bankFilter);
-            return (
-              <div style={{ padding: '12px 24px', borderTop: '1px solid var(--color-border)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
-                {bankFilter}：列表顯示 {visibleTransactions.length} 筆存款，小計 <strong>NT$ {filteredSubtotal.toLocaleString()}</strong>
-                {b && (b.income > 0 || b.expense > 0) && (
-                  <>
-                    {' '}＋ 收入 NT$ {b.income.toLocaleString()} − 支出 NT$ {b.expense.toLocaleString()} ＝ 餘額{' '}
-                    <strong style={{ color: b.balance < 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
-                      NT$ {b.balance.toLocaleString()}
-                    </strong>
-                  </>
-                )}
-              </div>
-            );
-          })()}
         </div>
       )}
 
+      {/* 銀行明細（含收入 / 支出 / 存款） */}
+      {type === 'savings' && bankFilter && bankDetail && (() => {
+        const b = bankSummary.find(x => x.bank === bankFilter);
+        const monthSubtotal = bankDetail.reduce((s, t) => {
+          const amt = parseFloat(t.amount) || 0;
+          return s + (t.type === 'expense' ? -amt : amt);
+        }, 0);
+        return (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+              <h3 style={{ margin: 0 }}>
+                {bankFilter} 明細
+                <span style={{ marginLeft: 12, fontSize: 13, fontWeight: 400, color: 'var(--color-text-secondary)' }}>
+                  總餘額 <strong style={{ color: b && b.balance < 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
+                    NT$ {(b?.balance || 0).toLocaleString()}
+                  </strong>
+                </span>
+              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <label style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>月份</label>
+                <select
+                  className="form-select"
+                  value={monthFilter}
+                  onChange={e => setMonthFilter(e.target.value)}
+                  style={{ width: 'auto', fontSize: 13 }}
+                >
+                  <option value="">全部</option>
+                  {monthOptions.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="card-body no-padding">
+              {bankDetail.length === 0 ? (
+                <div className="empty-state"><p>此月份沒有交易紀錄</p></div>
+              ) : (
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>日期</th>
+                        <th>類型</th>
+                        <th>類別</th>
+                        <th style={{ textAlign: 'right' }}>金額</th>
+                        <th>備註</th>
+                        <th style={{ textAlign: 'right' }}>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bankDetail.map(t => {
+                        const amt = parseFloat(t.amount) || 0;
+                        const isExpense = t.type === 'expense';
+                        const sign = isExpense ? '−' : '+';
+                        return (
+                          <tr key={t.id}>
+                            <td>{new Date(t.date).toLocaleDateString('zh-TW')}</td>
+                            <td>
+                              <span className={`badge badge-${t.type}`}>{typeLabels[t.type]}</span>
+                            </td>
+                            <td style={{ color: 'var(--color-text-secondary)' }}>{t.category || '-'}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 600, color: isExpense ? 'var(--color-danger)' : 'var(--color-success)' }}>
+                              {sign}NT$ {amt.toLocaleString()}
+                            </td>
+                            <td style={{ color: 'var(--color-text-secondary)' }}>{t.description || '-'}</td>
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(t); setShowForm(true); }}>編輯</button>
+                                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(t.id)}>刪除</button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div style={{ padding: '12px 24px', borderTop: '1px solid var(--color-border)', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                共 {bankDetail.length} 筆{monthFilter ? `（${monthFilter}）` : ''}，
+                當期淨額 <strong style={{ color: monthSubtotal < 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
+                  {monthSubtotal >= 0 ? '+' : ''}NT$ {monthSubtotal.toLocaleString()}
+                </strong>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {!(type === 'savings' && bankFilter) && (
       <div className="card">
         <div className="card-body no-padding">
           {!family ? (
@@ -494,6 +578,7 @@ export default function TransactionPage({ type, description }) {
           )}
         </div>
       </div>
+      )}
 
       {showForm && family && (
         <TransactionForm
