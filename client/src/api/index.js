@@ -52,6 +52,7 @@ export const api = {
     return request(`/transactions${qs ? `?${qs}` : ''}`);
   },
   createTransaction: (body) => request('/transactions', { method: 'POST', body: JSON.stringify(body) }),
+  createTransfer: (body) => request('/transactions/transfer', { method: 'POST', body: JSON.stringify(body) }),
   updateTransaction: (id, body) => request(`/transactions/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteTransaction: (id) => request(`/transactions/${id}`, { method: 'DELETE' }),
 

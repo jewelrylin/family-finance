@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../api';
 import TransactionForm from './TransactionForm';
+import { bankOptions } from '../constants/banks';
 
 const typeLabels = { income: '收入', expense: '支出', investment: '投資', savings: '存款' };
 
@@ -34,6 +35,8 @@ export default function TransactionPage({ type, description }) {
   const [bankFilter, setBankFilter] = useState(null); // 存款分類：點哪家銀行就只看那家
   const [bankRelatedTxs, setBankRelatedTxs] = useState([]); // 存款頁用：含收入、支出，用來算每家銀行真實餘額
   const [monthFilter, setMonthFilter] = useState(''); // 'YYYY-MM' 或 '' = 全部月份
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [transferForm, setTransferForm] = useState({ from: '', to: '', amount: '', date: new Date().toISOString().split('T')[0], description: '' });
 
   const loadPrices = useCallback(async (txs) => {
     if (type !== 'investment') return;
@@ -169,9 +172,33 @@ export default function TransactionPage({ type, description }) {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('確定要刪除此記錄嗎？')) return;
+    if (!confirm('確定要刪除此記錄嗎？\n若為轉帳，配對的另一筆也會一併刪除。')) return;
     await api.deleteTransaction(id);
     loadData();
+  };
+
+  const handleTransfer = async (e) => {
+    e.preventDefault();
+    if (!family) return;
+    if (transferForm.from === transferForm.to) {
+      alert('來源與目的銀行不能相同');
+      return;
+    }
+    try {
+      await api.createTransfer({
+        family_id: family.id,
+        from_bank: transferForm.from,
+        to_bank: transferForm.to,
+        amount: parseFloat(transferForm.amount),
+        date: transferForm.date,
+        description: transferForm.description
+      });
+      setShowTransfer(false);
+      setTransferForm({ from: '', to: '', amount: '', date: new Date().toISOString().split('T')[0], description: '' });
+      loadData();
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   // 存款：依銀行匯總「真實餘額」（含收入/支出影響）
@@ -270,9 +297,16 @@ export default function TransactionPage({ type, description }) {
             </>
           )}
         </div>
-        <button className="btn btn-primary" onClick={() => { setEditData(null); setShowForm(true); }} disabled={!family}>
-          新增{typeLabels[type]}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {type === 'savings' && (
+            <button className="btn btn-secondary" onClick={() => setShowTransfer(true)} disabled={!family}>
+              銀行互轉
+            </button>
+          )}
+          <button className="btn btn-primary" onClick={() => { setEditData(null); setShowForm(true); }} disabled={!family}>
+            新增{typeLabels[type]}
+          </button>
+        </div>
       </div>
 
       {type === 'savings' && bankSummary && bankSummary.length > 0 && (
@@ -588,6 +622,96 @@ export default function TransactionPage({ type, description }) {
           initialData={editData}
           defaultType={editData ? undefined : type}
         />
+      )}
+
+      {showTransfer && family && (
+        <div className="modal-overlay" onClick={() => setShowTransfer(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>銀行互轉</h3>
+              <button className="modal-close" onClick={() => setShowTransfer(false)}>&times;</button>
+            </div>
+            <form onSubmit={handleTransfer}>
+              <div className="modal-body">
+                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 0 }}>
+                  會建立一對配對交易（來源：支出 / 目的：收入），分類自動標為「轉帳」，不會計入家庭收支分析。
+                </p>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">來源銀行</label>
+                    <select
+                      className="form-select"
+                      value={transferForm.from}
+                      onChange={e => setTransferForm(s => ({ ...s, from: e.target.value }))}
+                      required
+                    >
+                      <option value="">選擇銀行</option>
+                      {bankOptions.map(b => {
+                        const summary = bankSummary?.find(s => s.bank === b);
+                        const label = summary ? `${b}（餘額 NT$ ${summary.balance.toLocaleString()}）` : b;
+                        return <option key={b} value={b}>{label}</option>;
+                      })}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">目的銀行</label>
+                    <select
+                      className="form-select"
+                      value={transferForm.to}
+                      onChange={e => setTransferForm(s => ({ ...s, to: e.target.value }))}
+                      required
+                    >
+                      <option value="">選擇銀行</option>
+                      {bankOptions.filter(b => b !== transferForm.from).map(b => {
+                        const summary = bankSummary?.find(s => s.bank === b);
+                        const label = summary ? `${b}（餘額 NT$ ${summary.balance.toLocaleString()}）` : b;
+                        return <option key={b} value={b}>{label}</option>;
+                      })}
+                    </select>
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">金額</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      step="0.01"
+                      min="0.01"
+                      value={transferForm.amount}
+                      onChange={e => setTransferForm(s => ({ ...s, amount: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">日期</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={transferForm.date}
+                      onChange={e => setTransferForm(s => ({ ...s, date: e.target.value }))}
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">備註（選填）</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="例：信用卡繳費"
+                    value={transferForm.description}
+                    onChange={e => setTransferForm(s => ({ ...s, description: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowTransfer(false)}>取消</button>
+                <button type="submit" className="btn btn-primary">建立轉帳</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

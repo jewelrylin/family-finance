@@ -49,9 +49,10 @@ router.get('/family', auth, async (req, res) => {
     const myCategories = { income: {}, expense: {}, investment: {}, savings: {} };
     (myTransactions || []).forEach(t => {
       const type = t.type === 'deposit' ? 'savings' : t.type;
+      const cat = decrypt(t.category) || '未分類';
+      if (cat === '轉帳') return; // 銀行互轉不算入收支
       const value = txCost(t);
       mySummary[type] = (mySummary[type] || 0) + value;
-      const cat = decrypt(t.category) || '未分類';
       myCategories[type][cat] = (myCategories[type][cat] || 0) + value;
     });
     mySummary.total = mySummary.income - mySummary.expense + mySummary.investment + mySummary.savings;
@@ -59,16 +60,17 @@ router.get('/family', auth, async (req, res) => {
     // 家庭全部交易（含 category 欄位）
     const { data: allTransactions } = await supabase
       .from('transactions')
-      .select('type, amount, category, user_id, shares')
+      .select('type, amount, category, user_id, shares, action')
       .eq('family_id', familyId);
 
     const familySummary = { income: 0, expense: 0, investment: 0, savings: 0, total: 0 };
     const familyCategories = { income: {}, expense: {}, investment: {}, savings: {} };
     (allTransactions || []).forEach(t => {
       const type = t.type === 'deposit' ? 'savings' : t.type;
+      const cat = decrypt(t.category) || '未分類';
+      if (cat === '轉帳') return; // 銀行互轉不算入收支
       const value = txCost(t);
       familySummary[type] = (familySummary[type] || 0) + value;
-      const cat = decrypt(t.category) || '未分類';
       familyCategories[type][cat] = (familyCategories[type][cat] || 0) + value;
     });
     familySummary.total = familySummary.income - familySummary.expense + familySummary.investment + familySummary.savings;
@@ -92,9 +94,10 @@ router.get('/family', auth, async (req, res) => {
       .select('id, display_name')
       .eq('family_id', familyId);
 
-    // 成員貢獻（從交易計算）
+    // 成員貢獻（從交易計算，跳過轉帳）
     const memberContributions = {};
     (allTransactions || []).forEach(t => {
+      if ((decrypt(t.category) || '') === '轉帳') return;
       const uid = t.user_id;
       if (!memberContributions[uid]) {
         memberContributions[uid] = { income: 0, expense: 0, investment: 0, savings: 0 };

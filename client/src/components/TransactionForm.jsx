@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
+import { bankOptions } from '../constants/banks';
 
 const typeConfig = {
   income: { label: '收入', color: 'var(--color-success)' },
@@ -19,17 +20,6 @@ const freqOptions = [
   { value: 'weekly', label: '每週' },
   { value: 'monthly', label: '每月' },
   { value: 'yearly', label: '每年' }
-];
-
-const bankOptions = [
-  '現金',
-  '台灣銀行', '土地銀行', '合作金庫', '第一銀行', '華南銀行', '彰化銀行',
-  '上海商銀', '台北富邦', '國泰世華', '高雄銀行', '兆豐銀行', '花旗銀行',
-  '王道銀行', '臺灣企銀', '渣打銀行', '台中商銀', '匯豐銀行', '華泰銀行',
-  '陽信銀行', '板信銀行', '三信銀行', '聯邦銀行', '遠東商銀', '元大銀行',
-  '永豐銀行', '玉山銀行', '凱基銀行', '星展銀行', '台新銀行', '日盛銀行',
-  '安泰銀行', '中國信託', '將來銀行', 'LINE Bank', '樂天銀行', '中華郵政',
-  '其他'
 ];
 
 const currencyOptions = [
